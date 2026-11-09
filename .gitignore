@@ -1,0 +1,13 @@
+# Datos locales: modelos (incluye la clave privada id_ed25519 de Ollama), archivos y bases de datos
+modelos/
+archivos/
+filebrowser/database/
+.env
+
+# Compilados
+dist/
+homelab
+homelab.exe
+
+# Herramientas locales
+.remember/

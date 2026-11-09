@@ -1,0 +1,50 @@
+services:
+  ollama:
+    image: ollama/ollama:0.40.15
+    container_name: ia-local
+    restart: unless-stopped
+    cpus: 2 # núcleos que puede usar la IA
+    mem_limit: 6g # memoria máxima
+    memswap_limit: 6g # sin swap: si no cabe, avisa en vez de arrastrar todo
+    environment:
+      OLLAMA_MAX_LOADED_MODELS: "1" # un modelo cargado a la vez
+      OLLAMA_NUM_PARALLEL: "1" # una pregunta a la vez
+      OLLAMA_KEEP_ALIVE: "10m" # lo descarga de la memoria tras 10 min sin uso
+    volumes:
+      - ./modelos:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434" # solo desde el propio servidor
+  portainer:
+    image: portainer/portainer-ce:lts
+    restart: unless-stopped
+    ports:
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
+  filebrowser:
+    image: filebrowser/filebrowser
+    restart: unless-stopped
+    user: "1000:1000"
+    ports:
+      - "8080:80"
+    volumes:
+      - ./archivos:/srv
+      - ./filebrowser/database:/database
+      - ./filebrowser/config:/config
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - GENERIC_TIMEZONE=America/Bogota # cambia a tu zona horaria
+      - N8N_SECURE_COOKIE=false # para entrar por http dentro de tu casa
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  portainer_data: {}
+  n8n_data: {}
