@@ -163,12 +163,13 @@ func (s *sesion) turno(ctx context.Context, q string) error {
 	}
 	var r Respuesta
 	var primera time.Duration
+	empezo := false
 	notas := 0 // un 2B en bucle podría crear notas sin parar
 	for vuelta := 0; ; vuelta++ {
 		var err error
 		r, err = s.pedir(ctx, mensajes, texto, func() {
-			if primera == 0 {
-				primera = time.Since(t0)
+			if !empezo {
+				primera, empezo = time.Since(t0), true
 			}
 		})
 		if err != nil {

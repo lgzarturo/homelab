@@ -43,7 +43,7 @@ func TestChatStreamingYMetricas(t *testing.T) {
 	if m.Lectura != 50 || m.Escritura != 10 || m.TokensPrompt != 100 || m.TokensSalida != 30 || m.Carga != 500*time.Millisecond {
 		t.Errorf("métricas = %+v; quería lectura 50, escritura 10, 100/30 tokens, carga 500ms", m)
 	}
-	if m.PrimeraPalabra <= 0 || m.Total < m.PrimeraPalabra {
+	if m.PrimeraPalabra < 0 || m.Total < m.PrimeraPalabra {
 		t.Errorf("tiempos incoherentes: primera %v, total %v", m.PrimeraPalabra, m.Total)
 	}
 }

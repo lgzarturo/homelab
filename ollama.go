@@ -121,7 +121,7 @@ func (o *Ollama) Chat(ctx context.Context, p PeticionChat, alTrozo func(texto st
 		return r, errorHTTP(resp, p.Model)
 	}
 	dec := json.NewDecoder(resp.Body)
-	terminado := false
+	terminado, empezo := false, false
 	for !terminado {
 		var d struct {
 			Message            Mensaje `json:"message"`
@@ -146,8 +146,9 @@ func (o *Ollama) Chat(ctx context.Context, p PeticionChat, alTrozo func(texto st
 			return r, errors.New(d.Error)
 		}
 		m := d.Message
-		if r.Metricas.PrimeraPalabra == 0 && (m.Content != "" || m.Thinking != "" || len(m.ToolCalls) > 0) {
-			r.Metricas.PrimeraPalabra = time.Since(t0)
+		// Bandera y no "== 0": con el reloj de baja resolución de Windows la primera palabra puede medir 0.
+		if !empezo && (m.Content != "" || m.Thinking != "" || len(m.ToolCalls) > 0) {
+			r.Metricas.PrimeraPalabra, empezo = time.Since(t0), true
 		}
 		r.Llamadas = append(r.Llamadas, m.ToolCalls...)
 		if m.Thinking != "" {
