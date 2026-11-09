@@ -1,50 +1,119 @@
+# Homelab de IA local. Se configura con .env (`homelab up` lo crea a partir de .env.example).
+# Cada servicio tiene un profile con su nombre: COMPOSE_PROFILES en .env decide cuáles arrancan.
+name: homelab
+
 services:
   ollama:
     image: ollama/ollama:0.40.15
     container_name: ia-local
+    profiles: [ollama]
     restart: unless-stopped
-    cpus: 2 # núcleos que puede usar la IA
-    mem_limit: 6g # memoria máxima
-    memswap_limit: 6g # sin swap: si no cabe, avisa en vez de arrastrar todo
+    cpus: ${OLLAMA_CPUS:-2} # núcleos que puede usar la IA
+    mem_limit: ${OLLAMA_MEM:-6g} # memoria máxima
+    memswap_limit: ${OLLAMA_MEM:-6g} # sin swap: si no cabe, avisa en vez de arrastrar todo
     environment:
       OLLAMA_MAX_LOADED_MODELS: "1" # un modelo cargado a la vez
       OLLAMA_NUM_PARALLEL: "1" # una pregunta a la vez
       OLLAMA_KEEP_ALIVE: "10m" # lo descarga de la memoria tras 10 min sin uso
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CTX:-4096} # contexto por defecto: RAM predecible
     volumes:
-      - ./modelos:/root/.ollama
+      - ${OLLAMA_DATA:-ollama_data}:/root/.ollama
     ports:
-      - "127.0.0.1:11434:11434" # solo desde el propio servidor
+      - "127.0.0.1:11434:11434" # solo desde el propio equipo (CLI homelab)
+    healthcheck:
+      test: ["CMD", "ollama", "ps"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.12.5
+    profiles: [openwebui]
+    restart: unless-stopped
+    mem_limit: ${OPENWEBUI_MEM:-2g}
+    depends_on:
+      ollama:
+        condition: service_healthy
+        required: false # con Ollama nativo (Mac) este servicio no existe
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # para llegar a un Ollama nativo
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      DEFAULT_LOCALE: es-ES
+      # Voz: Whisper para oír y Kokoro/Piper para leer en voz alta, ambos en speaches
+      AUDIO_STT_ENGINE: openai
+      AUDIO_STT_OPENAI_API_BASE_URL: http://speaches:8000/v1
+      AUDIO_STT_OPENAI_API_KEY: local
+      AUDIO_STT_MODEL: ${STT_MODEL:-Systran/faster-whisper-small}
+      AUDIO_TTS_ENGINE: openai
+      AUDIO_TTS_OPENAI_API_BASE_URL: http://speaches:8000/v1
+      AUDIO_TTS_OPENAI_API_KEY: local
+      AUDIO_TTS_MODEL: ${TTS_MODEL:-speaches-ai/Kokoro-82M-v1.0-ONNX}
+      AUDIO_TTS_VOICE: ${TTS_VOICE:-ef_dora}
+      # Documentos en español (RAG): embeddings multilingües dentro de Open WebUI, sin ocupar Ollama
+      RAG_EMBEDDING_MODEL: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+      # En CPU estas tareas extra hacen cola detrás de tu pregunta
+      ENABLE_TITLE_GENERATION: "false"
+      ENABLE_TAGS_GENERATION: "false"
+      ENABLE_FOLLOW_UP_GENERATION: "false"
+      ENABLE_AUTOCOMPLETE_GENERATION: "false"
+      ENABLE_RETRIEVAL_QUERY_GENERATION: "false" # busca en tus documentos con tu pregunta tal cual
+    volumes:
+      - open_webui_data:/app/backend/data
+    ports:
+      - "${BIND_IP:-127.0.0.1}:3000:8080"
+
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cpu
+    profiles: [speaches]
+    restart: unless-stopped
+    mem_limit: ${SPEACHES_MEM:-2g}
+    environment:
+      LOG_LEVEL: info
+    volumes:
+      - hf_cache:/home/ubuntu/.cache/huggingface/hub
+    ports:
+      - "127.0.0.1:8000:8000" # API sin autenticación: solo este equipo (Open WebUI y n8n usan la red interna)
+
   portainer:
-    image: portainer/portainer-ce:lts
+    image: portainer/portainer-ce:2.45.3
+    profiles: [portainer]
     restart: unless-stopped
     ports:
-      - "9443:9443"
+      - "${BIND_IP:-127.0.0.1}:9443:9443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock # control total de Docker: no lo abras a redes que no controlas
       - portainer_data:/data
 
   filebrowser:
-    image: filebrowser/filebrowser
+    image: filebrowser/filebrowser:v2.63.23
+    profiles: [filebrowser]
     restart: unless-stopped
-    user: "1000:1000"
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
-      - "8080:80"
+      - "${BIND_IP:-127.0.0.1}:8080:80"
     volumes:
       - ./archivos:/srv
       - ./filebrowser/database:/database
       - ./filebrowser/config:/config
 
   n8n:
-    image: docker.n8n.io/n8nio/n8n
+    image: docker.n8n.io/n8nio/n8n:2.46.6
+    profiles: [n8n]
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # para llegar a un Ollama nativo
     ports:
-      - "5678:5678"
+      - "${BIND_IP:-127.0.0.1}:5678:5678"
     environment:
-      - GENERIC_TIMEZONE=America/Bogota # cambia a tu zona horaria
+      - GENERIC_TIMEZONE=${TZ:-America/Bogota}
       - N8N_SECURE_COOKIE=false # para entrar por http dentro de tu casa
     volumes:
       - n8n_data:/home/node/.n8n
 
 volumes:
+  ollama_data: {}
+  open_webui_data: {}
+  hf_cache: {}
   portainer_data: {}
   n8n_data: {}
