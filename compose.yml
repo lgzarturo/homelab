@@ -67,7 +67,7 @@ services:
     image: ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cpu
     profiles: [speaches]
     restart: unless-stopped
-    mem_limit: ${SPEACHES_MEM:-2g}
+    mem_limit: ${SPEACHES_MEM:-3g}
     environment:
       LOG_LEVEL: info
     volumes:
