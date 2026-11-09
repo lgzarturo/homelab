@@ -2,6 +2,7 @@
 modelos/
 archivos/
 filebrowser/database/
+resultados/
 .env
 
 # Compilados

@@ -1,0 +1,2 @@
+# Finales de línea LF en todos los equipos: compose.yml y .env.example viajan dentro del binario.
+* text=auto eol=lf
