@@ -24,6 +24,7 @@ Comandos:
   models                    Modelos instalados y sus capacidades
   pull <modelo>...          Descarga modelos de Ollama
   chat [modelo] [--pensar]  Conversa con el agente local (/ayuda dentro del chat)
+  bench [modelos...]        Compara el rendimiento de los modelos (homelab bench -h)
   version                   Muestra la versión
 
 Opciones globales:
@@ -41,7 +42,7 @@ func main() {
 	}
 	comandos := map[string]func(dir string, args []string) error{
 		"up": cmdUp, "down": cmdDown, "status": cmdStatus, "logs": cmdLogs,
-		"models": cmdModels, "pull": cmdPull, "chat": cmdChat,
+		"models": cmdModels, "pull": cmdPull, "chat": cmdChat, "bench": cmdBench,
 	}
 	switch c := args[0]; {
 	case c == "version" || c == "--version":
