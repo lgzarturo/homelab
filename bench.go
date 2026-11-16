@@ -164,16 +164,21 @@ func cmdBench(flagDir string, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	o := nuevoOllama()
+	ms, err := o.Tags(ctx)
+	if err != nil {
+		return err
+	}
+	pesos := map[string]int64{}
+	for _, m := range ms {
+		pesos[m.Name] = m.Size
+	}
 	if len(modelos) == 0 {
-		ms, err := o.Tags(ctx)
-		if err != nil {
-			return err
-		}
 		for _, m := range ms {
 			modelos = append(modelos, m.Name)
 		}
 		slices.Sort(modelos)
 	}
+	limite := limiteOllama(env)
 	if len(modelos) == 0 {
 		return errors.New("no hay modelos instalados: homelab pull " + modeloPorDefecto)
 	}
@@ -185,6 +190,12 @@ func cmdBench(flagDir string, args []string) error {
 	fmt.Println(morado("🏁 Benchmark") + gris(fmt.Sprintf(" · %d modelos · %d rondas · ctx %d · hilos %s · think %v",
 		len(modelos), op.Rondas, op.Ctx, hilosTexto(op.Hilos), op.Pensar)))
 	for _, m := range modelos {
+		if peso := pesos[nombreCompleto(m)]; cabe(peso, limite) == "no" {
+			msg := fmt.Sprintf("no cabe: pesa %s y Ollama tiene %s (sube OLLAMA_MEM en .env)", gb(peso), gb(limite))
+			fmt.Println("\n" + morado("▸ "+m) + "\n" + rojo("  ✗ "+msg))
+			inf.Modelos = append(inf.Modelos, ResultadoModelo{Modelo: m, Error: msg})
+			continue
+		}
 		inf.Modelos = append(inf.Modelos, benchModelo(ctx, o, m, op))
 		if ctx.Err() != nil {
 			break

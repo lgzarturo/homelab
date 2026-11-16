@@ -182,6 +182,9 @@ func compose(dir string, args ...string) error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return errors.New("no encuentro Docker: instálalo (Docker Desktop en Mac/Windows) y vuelve a intentar")
 	}
+	if _, _, err := dockerVivo(); err != nil {
+		return err
+	}
 	cmd := exec.Command("docker", append([]string{"compose"}, args...)...)
 	cmd.Dir, cmd.Stdin, cmd.Stdout, cmd.Stderr = dir, os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -231,7 +234,7 @@ func cmdUp(flagDir string, args []string) error {
 		}
 	}
 	if !*sinModelos {
-		if err := instalarModelos(o, lista(env["OLLAMA_MODELS"])); err != nil {
+		if err := instalarModelos(o, lista(env["OLLAMA_MODELS"]), limiteOllama(env)); err != nil {
 			if perfilActivo(env, "ollama") {
 				return err
 			}
