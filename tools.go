@@ -26,6 +26,7 @@ import (
 // Política de herramientas: un modelo de 2B se equivoca a menudo, así que el agente solo tiene
 // herramientas de lectura y una que crea notas Markdown nuevas. No existen herramientas que
 // borren, reinicien o envíen nada; TestHerramientasPermitidas falla si alguien agrega una.
+// Una herramienta de lectura solo recibe argumentos de una lista cerrada (Enum), nunca texto libre.
 const (
 	tipoLectura = "lectura"
 	tipoNota    = "nota"
@@ -42,8 +43,10 @@ type Herramienta struct {
 	Ejecutar    func(args map[string]any) (any, error)
 }
 
-// herramientas devuelve el catálogo del agente; las notas se guardan en dirNotas.
-func herramientas(dirNotas string) []Herramienta {
+// herramientas devuelve el catálogo del agente para el homelab de esa carpeta; las notas se guardan
+// en <dir>/archivos/notas.
+func herramientas(dir string) []Herramienta {
+	dirNotas := filepath.Join(dir, "archivos", "notas")
 	return []Herramienta{
 		{Nombre: "disco", Descripcion: "Espacio del disco en GB", Tipo: tipoLectura,
 			Claves: []string{"disco", "espacio", "almacenamiento"}, Ejecutar: sinArgs(disco)},
@@ -55,6 +58,15 @@ func herramientas(dirNotas string) []Herramienta {
 			Claves: []string{"encendido", "encendida", "prendido", "prendida", "uptime"}, Ejecutar: sinArgs(tiempoEncendido)},
 		{Nombre: "contenedores", Descripcion: "Cuántos contenedores de Docker están corriendo", Tipo: tipoLectura,
 			Claves: []string{"contenedor", "contenedores", "docker"}, Ejecutar: sinArgs(contenedores)},
+		{Nombre: "servicios", Descripcion: "Estado de cada servicio del homelab (corriendo, detenido, reiniciando)", Tipo: tipoLectura,
+			Claves: []string{"servicio", "servicios"}, Ejecutar: sinArgs(func() (any, error) { return servicios(dir) })},
+		{Nombre: "logs_servicio", Descripcion: "Últimas líneas del registro (log) de un servicio del homelab", Tipo: tipoLectura,
+			Params:   map[string]Prop{"servicio": {Type: "string", Description: "Servicio a revisar", Enum: serviciosStack}},
+			Ejecutar: func(a map[string]any) (any, error) { return logsServicio(dir, a) }},
+		{Nombre: "procesos", Descripcion: "Los 5 programas que más memoria RAM usan, en MB", Tipo: tipoLectura,
+			Claves: []string{"proceso", "procesos", "programas"}, Ejecutar: sinArgs(procesos)},
+		{Nombre: "leer_notas", Descripcion: "Las 5 notas guardadas más recientes", Tipo: tipoLectura,
+			Claves: []string{"notas", "apuntes"}, Ejecutar: sinArgs(func() (any, error) { return leerNotas(dirNotas) })},
 		{Nombre: "escribir_nota", Descripcion: "Guarda una nota nueva en Markdown. Solo crea archivos nuevos: nunca borra ni sobrescribe.", Tipo: tipoNota,
 			Params: map[string]Prop{
 				"titulo":    {Type: "string", Description: "Título corto de la nota"},

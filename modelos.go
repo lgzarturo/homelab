@@ -98,6 +98,26 @@ func cmdPull(flagDir string, args []string) error {
 	return nil
 }
 
+func cmdRm(_ string, args []string) error {
+	if len(args) == 0 {
+		return errors.New("uso: homelab rm <modelo>... (mira los nombres con: homelab models)")
+	}
+	o := nuevoOllama()
+	for _, m := range args {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		err := o.Borrar(ctx, m)
+		cancel()
+		if errors.Is(err, ErrModeloNoInstalado) {
+			return fmt.Errorf("%s no está instalado", m)
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Println(verde("  ✓ ") + "borrado " + m)
+	}
+	return nil
+}
+
 // instalarModelos descarga los modelos de la lista que todavía no estén instalados.
 func instalarModelos(o *Ollama, modelos []string, limite int64) error {
 	if len(modelos) == 0 {

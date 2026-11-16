@@ -48,8 +48,9 @@ type Mensaje struct {
 }
 
 type Prop struct {
-	Type        string `json:"type"`
-	Description string `json:"description,omitempty"`
+	Type        string   `json:"type"`
+	Description string   `json:"description,omitempty"`
+	Enum        []string `json:"enum,omitempty"`
 }
 
 type Params struct {
@@ -237,6 +238,11 @@ func (o *Ollama) Cargar(ctx context.Context, modelo string, opciones map[string]
 // Liberar saca el modelo de la memoria (keep_alive 0).
 func (o *Ollama) Liberar(ctx context.Context, modelo string) error {
 	return o.pedirJSON(ctx, http.MethodPost, "/api/generate", map[string]any{"model": modelo, "stream": false, "keep_alive": 0}, nil)
+}
+
+// Borrar elimina un modelo instalado.
+func (o *Ollama) Borrar(ctx context.Context, modelo string) error {
+	return o.pedirJSON(ctx, http.MethodDelete, "/api/delete", map[string]any{"model": modelo}, nil)
 }
 
 // Instalar descarga un modelo (api/pull) informando el progreso.

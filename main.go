@@ -17,13 +17,16 @@ Uso:
   homelab <comando> [opciones]
 
 Comandos:
-  up [--sin-modelos]        Levanta los servicios y descarga los modelos que falten
+  up [--sin-modelos] [--lab]  Levanta los servicios y descarga los modelos que falten
+                            (--lab: solo Ollama, para medir modelos)
   down                      Detiene los servicios
   status                    Estado de los servicios, de Ollama y URLs
   logs [servicio] [-f]      Muestra los logs (docker compose logs)
   models                    Modelos instalados y sus capacidades
   doctor                    Revisa Docker, memoria, carpeta, puertos y modelos que no caben
-  pull <modelo>...          Descarga modelos de Ollama (avisa si no caben; --forzar)
+  pull <modelo>...          Descarga modelos de Ollama o de Hugging Face (hf.co/usuario/repo:cuant)
+  rm <modelo>...            Borra modelos instalados
+  ask "pregunta"            Una sola respuesta, sin chat: para scripts, cron o n8n (homelab ask -h)
   chat [modelo] [--pensar]  Conversa con el agente local (/ayuda dentro del chat)
   bench [modelos...]        Compara el rendimiento de los modelos (homelab bench -h)
   bench compare             Cruza los informes guardados en resultados/
@@ -45,7 +48,7 @@ func main() {
 	comandos := map[string]func(dir string, args []string) error{
 		"up": cmdUp, "down": cmdDown, "status": cmdStatus, "logs": cmdLogs,
 		"models": cmdModels, "pull": cmdPull, "chat": cmdChat, "bench": cmdBench,
-		"doctor": cmdDoctor,
+		"doctor": cmdDoctor, "ask": cmdAsk, "rm": cmdRm,
 	}
 	switch c := args[0]; {
 	case c == "version" || c == "--version":

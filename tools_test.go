@@ -17,8 +17,10 @@ func TestHerramientasPermitidas(t *testing.T) {
 	for _, h := range hs {
 		switch h.Tipo {
 		case tipoLectura:
-			if len(h.Params) != 0 {
-				t.Errorf("%s: una herramienta de lectura no recibe argumentos del modelo", h.Nombre)
+			for nombre, p := range h.Params {
+				if len(p.Enum) == 0 {
+					t.Errorf("%s: el argumento %q de una herramienta de lectura debe ser de lista cerrada (Enum)", h.Nombre, nombre)
+				}
 			}
 		case tipoNota:
 			if h.Nombre != "escribir_nota" {
@@ -153,5 +155,68 @@ func TestEjecutarConvierteErroresEnJSON(t *testing.T) {
 	h := Herramienta{Nombre: "x", Ejecutar: func(map[string]any) (any, error) { return nil, errors.New("sin permiso") }}
 	if got := ejecutar(h, nil); got != `{"error":"sin permiso"}` {
 		t.Errorf("ejecutar = %s", got)
+	}
+}
+
+func TestLogsServicioSoloListaCerrada(t *testing.T) {
+	for _, servicio := range []any{"otro", "ollama; rm -rf /", "--help", "../compose", "", nil, 3} {
+		_, err := logsServicio(t.TempDir(), map[string]any{"servicio": servicio})
+		if err == nil || !strings.Contains(err.Error(), "servicio desconocido") {
+			t.Errorf("logsServicio(%v) = %v; debía rechazarlo antes de llamar a Docker", servicio, err)
+		}
+	}
+	// Servicio válido pero la carpeta no es un homelab: error claro, sin ejecutar nada.
+	if _, err := logsServicio(t.TempDir(), map[string]any{"servicio": "ollama"}); err == nil || !strings.Contains(err.Error(), "no hay un homelab") {
+		t.Errorf("error = %v", err)
+	}
+}
+
+func TestLeerNotasRecientes(t *testing.T) {
+	dir := t.TempDir()
+	if b, _ := json.Marshal(mustAny(leerNotas(filepath.Join(dir, "no-existe")))); string(b) != `{"notas":[]}` {
+		t.Errorf("sin carpeta debía devolver una lista vacía: %s", b)
+	}
+	base := time.Now().Add(-time.Hour)
+	for i := 0; i < 7; i++ {
+		ruta := filepath.Join(dir, "nota-"+string(rune('a'+i))+".md")
+		if err := os.WriteFile(ruta, []byte("# Nota\n\n"+strings.Repeat("x", 900)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_ = os.Chtimes(ruta, base.Add(time.Duration(i)*time.Minute), base.Add(time.Duration(i)*time.Minute))
+	}
+	_ = os.WriteFile(filepath.Join(dir, "otro.txt"), []byte("no es nota"), 0o644)
+	b, _ := json.Marshal(mustAny(leerNotas(dir)))
+	var v struct {
+		Notas []struct{ Archivo, Texto string }
+	}
+	_ = json.Unmarshal(b, &v)
+	if len(v.Notas) != 5 || v.Notas[0].Archivo != "nota-g.md" || v.Notas[4].Archivo != "nota-c.md" {
+		t.Fatalf("notas = %+v; quería las 5 más recientes, de la g a la c", v.Notas)
+	}
+	if n := len([]rune(v.Notas[0].Texto)); n > 601 {
+		t.Errorf("el texto de la nota mide %d caracteres; el modelo debe recibir un extracto", n)
+	}
+}
+
+func mustAny(v any, err error) any {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func TestProcesosSoloNombreYMemoria(t *testing.T) {
+	b, _ := json.Marshal(mustAny(procesos()))
+	var v struct {
+		Procesos []map[string]any
+	}
+	_ = json.Unmarshal(b, &v)
+	if len(v.Procesos) == 0 || len(v.Procesos) > 5 {
+		t.Fatalf("procesos = %s", b)
+	}
+	for _, p := range v.Procesos {
+		if len(p) != 2 || p["nombre"] == "" || p["memoria_mb"] == nil {
+			t.Errorf("un proceso solo lleva nombre y memoria_mb: %v", p)
+		}
 	}
 }

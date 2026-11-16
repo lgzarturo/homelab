@@ -208,6 +208,7 @@ func dirExistente(flagDir string) (string, error) {
 func cmdUp(flagDir string, args []string) error {
 	fs := flag.NewFlagSet("up", flag.ContinueOnError)
 	sinModelos := fs.Bool("sin-modelos", false, "no descargar modelos de IA ni de voz")
+	lab := fs.Bool("lab", false, "modo laboratorio: solo Ollama; detiene los demás servicios para medir sin que ocupen memoria")
 	if _, err := parsear(fs, args); err != nil {
 		return err
 	}
@@ -224,8 +225,19 @@ func cmdUp(flagDir string, args []string) error {
 		fmt.Println(gris("  compose.yml escrito desde el binario (si había uno, quedó en compose.yml.bak; tus ajustes van en .env o compose.override.yml)"))
 	}
 	env := leerEnv(dir)
+	if *lab {
+		// En docker compose el entorno gana a .env: vale solo para esta ejecución.
+		os.Setenv("COMPOSE_PROFILES", "ollama")
+		env["COMPOSE_PROFILES"] = "ollama"
+	}
 	if err := compose(dir, "up", "-d"); err != nil {
 		return err
+	}
+	if *lab {
+		if err := compose(dir, append([]string{"--profile", "*", "stop"}, serviciosStack[1:]...)...); err != nil {
+			return err
+		}
+		fmt.Println(gris("  Modo laboratorio: solo Ollama. `homelab up` vuelve a levantar todo."))
 	}
 	o := nuevoOllama()
 	if perfilActivo(env, "ollama") {

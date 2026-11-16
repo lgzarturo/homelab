@@ -50,7 +50,9 @@ type sesion struct {
 	o         *Ollama
 	modelo    string
 	pensar    bool
-	hilos     int // num_thread; 0 = lo decide Ollama
+	hilos     int  // num_thread; 0 = lo decide Ollama
+	callado   bool // modo ask: no imprime la conversación; la respuesta queda en ultima
+	ultima    string
 	hs        []Herramienta
 	tools     []Tool
 	sistema   string
@@ -64,26 +66,86 @@ func cmdChat(flagDir string, args []string) error {
 	if err != nil {
 		return err
 	}
-	dir, err := resolverDir(flagDir)
-	if err != nil {
-		return err
-	}
-	env := leerEnv(dir)
-	modelo := modeloPorDefecto
-	if ms := lista(env["OLLAMA_MODELS"]); len(ms) > 0 {
-		modelo = ms[0]
-	}
+	modelo := ""
 	if len(pos) > 0 {
 		modelo = pos[0]
 	}
-	o := nuevoOllama()
-	if err := verificarModelo(o, modelo); err != nil {
+	s, _, err := abrirSesion(flagDir, modelo, *pensar)
+	if err != nil {
 		return err
 	}
-	hs := herramientas(filepath.Join(dir, "archivos", "notas"))
-	// Sin num_thread, Ollama crea un hilo por núcleo que ve y todos compiten por la cuota de OLLAMA_CPUS.
-	s := &sesion{o: o, modelo: modelo, pensar: *pensar, hilos: entero(env["OLLAMA_CPUS"], 0), hs: hs, tools: definiciones(hs), sistema: sistema(hs)}
 	return s.repl(os.Stdin)
+}
+
+// abrirSesion prepara una conversación con el agente. Sin modelo usa el primero de OLLAMA_MODELS.
+func abrirSesion(flagDir, modelo string, pensar bool) (*sesion, string, error) {
+	dir, err := resolverDir(flagDir)
+	if err != nil {
+		return nil, "", err
+	}
+	env := leerEnv(dir)
+	if modelo == "" {
+		modelo = modeloPorDefecto
+		if ms := lista(env["OLLAMA_MODELS"]); len(ms) > 0 {
+			modelo = ms[0]
+		}
+	}
+	o := nuevoOllama()
+	if err := verificarModelo(o, modelo); err != nil {
+		return nil, "", err
+	}
+	hs := herramientas(dir)
+	// Sin num_thread, Ollama crea un hilo por núcleo que ve y todos compiten por la cuota de OLLAMA_CPUS.
+	return &sesion{o: o, modelo: modelo, pensar: pensar, hilos: entero(env["OLLAMA_CPUS"], 0), hs: hs, tools: definiciones(hs), sistema: sistema(hs)}, dir, nil
+}
+
+// cmdAsk hace una sola pregunta y escribe solo la respuesta: para scripts, cron o n8n.
+func cmdAsk(flagDir string, args []string) error {
+	fs := flag.NewFlagSet("ask", flag.ContinueOnError)
+	modelo := fs.String("modelo", "", "modelo a usar (por defecto, el primero de OLLAMA_MODELS)")
+	pensar := fs.Bool("pensar", false, "activa el razonamiento del modelo (think)")
+	nota := fs.String("nota", "", "guarda además la respuesta como nota Markdown con este título")
+	fs.Usage = func() {
+		fmt.Fprintln(fs.Output(), `Uso: homelab ask [opciones] "pregunta"   (sin pregunta, la lee de la entrada estándar)`)
+		fs.PrintDefaults()
+	}
+	pos, err := parsear(fs, args)
+	if err != nil {
+		return err
+	}
+	pregunta := strings.TrimSpace(strings.Join(pos, " "))
+	if pregunta == "" {
+		b, err := io.ReadAll(io.LimitReader(os.Stdin, 1<<20))
+		if err != nil {
+			return err
+		}
+		pregunta = strings.TrimSpace(string(b))
+	}
+	if pregunta == "" {
+		return errors.New(`falta la pregunta: homelab ask "¿cómo está el disco?"`)
+	}
+	s, dir, err := abrirSesion(flagDir, *modelo, *pensar)
+	if err != nil {
+		return err
+	}
+	s.callado = true
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	if err := s.turno(ctx, pregunta); err != nil {
+		return err
+	}
+	if s.ultima == "" {
+		return errors.New("el modelo no respondió nada")
+	}
+	fmt.Println(s.ultima)
+	if *nota != "" {
+		v, err := escribirNota(filepath.Join(dir, "archivos", "notas"), map[string]any{"titulo": *nota, "contenido": s.ultima})
+		if err != nil {
+			return fmt.Errorf("no pude guardar la nota: %w", err)
+		}
+		fmt.Fprintln(os.Stderr, gris("✎ nota guardada en archivos/"+v.(map[string]string)["guardada"]))
+	}
+	return nil
 }
 
 func (s *sesion) repl(entrada io.Reader) error {
@@ -199,6 +261,10 @@ func (s *sesion) turno(ctx context.Context, q string) error {
 		texto = "leyendo lo que vio"
 	}
 	contenido := strings.TrimSpace(r.Contenido)
+	s.ultima = contenido
+	if contenido == "" && s.callado {
+		return nil
+	}
 	if contenido == "" {
 		fmt.Println(gris("  (el modelo no respondió nada)") + "\n")
 		return nil
@@ -207,6 +273,9 @@ func (s *sesion) turno(ctx context.Context, q string) error {
 	s.historial = append(s.historial, Mensaje{Role: "user", Content: q}, Mensaje{Role: "assistant", Content: contenido})
 	if len(s.historial) > memoriaCorta {
 		s.historial = s.historial[len(s.historial)-memoriaCorta:]
+	}
+	if s.callado {
+		return nil
 	}
 	m := r.Metricas
 	fmt.Println(gris(fmt.Sprintf("  %.1f s 1ª palabra · %.0f tok/s lectura · %.1f tok/s escritura · %d tokens · %.1f s",
@@ -225,6 +294,9 @@ func (s *sesion) pedir(ctx context.Context, mensajes []Mensaje, texto string, al
 	}
 	pet := PeticionChat{Model: s.modelo, Messages: mensajes, Tools: s.tools, Think: s.pensar, Options: opciones}
 	r, err := s.o.Chat(ctx, pet, func(t string, esPensamiento bool) {
+		if s.callado {
+			return
+		}
 		if esPensamiento {
 			rueda.parar()
 			if !pensando {
@@ -267,6 +339,9 @@ func (s *sesion) buscar(nombre string) (Herramienta, bool) {
 // usar ejecuta una herramienta, avisa en pantalla y devuelve el mensaje "tool" para el modelo.
 func (s *sesion) usar(h Herramienta, args map[string]any) Mensaje {
 	resultado := ejecutar(h, args)
+	if s.callado {
+		return Mensaje{Role: "tool", ToolName: h.Nombre, Content: resultado}
+	}
 	if h.Tipo == tipoNota {
 		var v map[string]string
 		_ = json.Unmarshal([]byte(resultado), &v)

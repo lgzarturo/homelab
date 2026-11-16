@@ -141,3 +141,22 @@ func TestPorSegundo(t *testing.T) {
 		t.Error("porSegundo no maneja ceros o el caso normal")
 	}
 }
+
+func TestBorrar(t *testing.T) {
+	o := ollamaFalso(t, func(w http.ResponseWriter, r *http.Request) {
+		var p map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&p)
+		if r.Method != http.MethodDelete || r.URL.Path != "/api/delete" {
+			t.Errorf("petición inesperada: %s %s", r.Method, r.URL.Path)
+		}
+		if p["model"] != "existe:1b" {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+	if err := o.Borrar(context.Background(), "existe:1b"); err != nil {
+		t.Errorf("borrar un modelo instalado: %v", err)
+	}
+	if err := o.Borrar(context.Background(), "falta:1b"); !errors.Is(err, ErrModeloNoInstalado) {
+		t.Errorf("error = %v; quería ErrModeloNoInstalado", err)
+	}
+}

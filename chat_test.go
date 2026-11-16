@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -86,7 +87,7 @@ func TestTurnoNotaPedidaPorElModelo(t *testing.T) {
 	if err := s.turno(context.Background(), "Anota que quiero probar gemma"); err != nil {
 		t.Fatal(err)
 	}
-	entradas, _ := os.ReadDir(dir)
+	entradas, _ := os.ReadDir(filepath.Join(dir, "archivos", "notas"))
 	if len(entradas) != 1 || !strings.HasSuffix(entradas[0].Name(), "-ideas.md") {
 		t.Errorf("notas creadas: %v", entradas)
 	}
@@ -127,7 +128,7 @@ func TestTurnoLimitaNotasPorMensaje(t *testing.T) {
 	if err := s.turno(context.Background(), "Haz muchas notas"); err != nil {
 		t.Fatal(err)
 	}
-	if entradas, _ := os.ReadDir(dir); len(entradas) != maxNotasPorTurno {
+	if entradas, _ := os.ReadDir(filepath.Join(dir, "archivos", "notas")); len(entradas) != maxNotasPorTurno {
 		t.Errorf("se crearon %d notas; el máximo por mensaje es %d", len(entradas), maxNotasPorTurno)
 	}
 	segunda := (*recibidas)[1].Messages
@@ -150,5 +151,17 @@ func TestHistorialSeRecorta(t *testing.T) {
 	}
 	if len(s.historial) != memoriaCorta || s.historial[len(s.historial)-1].Content != "respuesta 4" {
 		t.Errorf("historial de %d mensajes; quería los últimos %d", len(s.historial), memoriaCorta)
+	}
+}
+
+func TestTurnoCalladoGuardaLaRespuesta(t *testing.T) {
+	o, _ := ollamaGuionado(t, `{"message":{"role":"assistant","content":"  El disco va bien.  "},"done":false}`)
+	s := nuevaSesion(o, t.TempDir())
+	s.callado = true
+	if err := s.turno(context.Background(), "hola"); err != nil {
+		t.Fatal(err)
+	}
+	if s.ultima != "El disco va bien." {
+		t.Errorf("ultima = %q", s.ultima)
 	}
 }
