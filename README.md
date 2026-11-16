@@ -20,7 +20,15 @@ Todos arrancan por defecto. Para quitar uno, bórralo de `COMPOSE_PROFILES` en `
 ## Instalación
 
 1. Instala Docker (Docker Desktop en macOS y Windows; Docker Engine en Linux).
-2. Copia el binario de tu sistema (`dist/homelab-<so>-<arquitectura>`) y renómbralo a `homelab` (`homelab.exe` en Windows).
+2. Descarga el binario de tu sistema desde [Releases](https://github.com/lgzarturo/homelab/releases/latest) y renómbralo a `homelab` (`homelab.exe` en Windows):
+
+   | Sistema | Archivo |
+   |---|---|
+   | Windows | `homelab-windows-amd64.exe` |
+   | Linux (Fedora, Ubuntu, Debian…) | `homelab-linux-amd64`, o `homelab-linux-arm64` en ARM |
+   | macOS | `homelab-darwin-arm64` (Apple Silicon) o `homelab-darwin-amd64` (Intel) |
+
+   En Linux y macOS dale permiso de ejecución: `chmod +x homelab`. En macOS, si el sistema lo bloquea por venir de internet: `xattr -d com.apple.quarantine homelab`.
 3. Ejecuta:
 
 ```bash

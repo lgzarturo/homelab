@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-16
+
 ### Added
 - Guía rápida imprimible en tamaño carta (`docs/cheatsheet.pdf`, fuente en `docs/cheatsheet.html`): instalación, chat, herramientas, comandos y modelos.
 - CLI `homelab` en Go, un binario para Linux, macOS y Windows con los comandos `up`, `down`, `status`, `logs`, `models`, `pull`, `chat`, `bench` y `version`.
