@@ -10,6 +10,8 @@
 - Servicios Open WebUI (chat, voz y RAG en español) y Speaches (Whisper y voces Kokoro en español).
 - `.env.example` con todas las variables, y profiles por servicio para activarlos o quitarlos.
 - `scripts/build.sh` para compilación cruzada; `README.md`.
+- `homelab doctor`: revisa Docker, la memoria de Docker contra los límites, la escritura en la carpeta, los puertos y los modelos que no caben.
+- `homelab pull` corta la descarga de un modelo que no cabe en la memoria de Ollama (`--forzar` la salta), y `homelab bench` lo omite con un error claro.
 
 ### Changed
 - `compose.yml`: versiones fijas (Portainer 2.45.3, Filebrowser v2.63.23, n8n 2.46.6, Open WebUI v0.12.5, Speaches 0.9.0-rc.3), healthcheck de Ollama, `OLLAMA_CONTEXT_LENGTH`, y límites, zona horaria y usuario de Filebrowser configurables.
@@ -19,6 +21,8 @@
 ### Fixed
 - El agente funciona en macOS y Windows; antes leía `/proc` y `/sys`, que solo existen en Linux.
 - Si una herramienta falla, Ollama está caído o el modelo no está instalado, el agente da un mensaje claro en vez de cerrarse.
+- `homelab chat` envía `num_thread` igual a `OLLAMA_CPUS`; antes Ollama creaba un hilo por núcleo detectado y competían por la cuota del contenedor.
+- Con Docker apagado, los comandos del stack lo dicen en vez de mostrar el error del pipe.
 - Falsos positivos de las palabras clave: "programación" ya no dispara la herramienta de memoria, "Discord" la de disco ni "calorías" la de temperatura.
 - El prompt de sistema menciona todas las herramientas ofrecidas al modelo (faltaba `contenedores`).
 

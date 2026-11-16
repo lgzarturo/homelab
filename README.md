@@ -38,7 +38,8 @@ Recomendado: 16 GB de RAM. Con 8 GB, deja solo `ollama,openwebui` en `COMPOSE_PR
 | `homelab status` | Estado de cada servicio, versión de Ollama, modelo en memoria y URLs. |
 | `homelab logs [servicio] [-f]` | Logs de los servicios, por ejemplo `homelab logs ollama -f`. |
 | `homelab models` | Modelos instalados: tamaño, parámetros, cuantización y capacidades. |
-| `homelab pull <modelo>...` | Descarga modelos, por ejemplo `homelab pull qwen3.5:4b-q4_K_M`. |
+| `homelab pull <modelo>... [--forzar]` | Descarga modelos, por ejemplo `homelab pull qwen3.5:4b-q4_K_M`. Corta la descarga si el modelo no cabe en la memoria de Ollama; `--forzar` la salta. |
+| `homelab doctor` | Revisa que Docker responda, que los límites de memoria quepan en Docker, que la carpeta permita escribir, los puertos y los modelos que no caben. |
 | `homelab chat [modelo] [--pensar]` | Conversa con el agente local. |
 | `homelab bench [modelos...]` | Compara el rendimiento de los modelos. |
 
