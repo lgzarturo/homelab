@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"slices"
@@ -123,21 +125,69 @@ func instalarModelos(o *Ollama, modelos []string, limite int64) error {
 	return nil
 }
 
-// instalar descarga un modelo. Con limite > 0 corta la descarga en cuanto Ollama informa el tamaño
-// de una capa que no cabe en su memoria (el tamaño solo se conoce al empezar a bajar).
+// Registros donde se consulta el peso de un modelo antes de descargarlo.
+var registroOllama, registroHF = "https://registry.ollama.ai", "https://huggingface.co"
+
+// urlManifiesto devuelve la dirección del manifiesto de un modelo: nombre[:etiqueta] de la
+// biblioteca de Ollama, usuario/nombre, o hf.co/usuario/repo[:cuantización].
+func urlManifiesto(modelo string) string {
+	nombre, etiqueta := modelo, "latest"
+	if i := strings.LastIndex(modelo, ":"); i > strings.LastIndex(modelo, "/") {
+		nombre, etiqueta = modelo[:i], modelo[i+1:]
+	}
+	for _, prefijo := range []string{"hf.co/", "huggingface.co/"} {
+		if resto, ok := strings.CutPrefix(nombre, prefijo); ok {
+			return registroHF + "/v2/" + resto + "/manifests/" + etiqueta
+		}
+	}
+	if !strings.Contains(nombre, "/") {
+		nombre = "library/" + nombre
+	}
+	return registroOllama + "/v2/" + nombre + "/manifests/" + etiqueta
+}
+
+// pesoRemoto pregunta al registro cuánto pesa un modelo sin descargarlo; 0 si no se pudo saber.
+func pesoRemoto(ctx context.Context, modelo string) int64 {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlManifiesto(modelo), nil)
+	if err != nil {
+		return 0
+	}
+	req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	var m struct {
+		Layers []struct {
+			Size int64 `json:"size"`
+		} `json:"layers"`
+	}
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&m) != nil {
+		return 0
+	}
+	var total int64
+	for _, l := range m.Layers {
+		total += l.Size
+	}
+	return total
+}
+
+// instalar descarga un modelo. Con limite > 0 consulta antes su peso en el registro y no empieza si
+// no cabe en la memoria de Ollama (una descarga cortada a medias deja un archivo parcial del tamaño completo).
 func instalar(o *Ollama, modelo string, limite int64) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	ctx, cortar := context.WithCancel(ctx)
-	defer cortar()
-	ultimo := ""
-	var grande int64
-	err := o.Instalar(ctx, modelo, func(estado string, hecho, total int64) {
-		if limite > 0 && total > limite {
-			grande = total
-			cortar()
-			return
+	if limite > 0 {
+		if peso := pesoRemoto(ctx, modelo); cabe(peso, limite) == "no" {
+			return fmt.Errorf("%s no cabe: pesa %s y Ollama tiene %s. Sube OLLAMA_MEM en .env, elige una versión más pequeña o usa --forzar",
+				modelo, gb(peso), gb(limite))
 		}
+	}
+	ultimo := ""
+	err := o.Instalar(ctx, modelo, func(estado string, hecho, total int64) {
 		linea := fmt.Sprintf("  ⬇ %s · %s", modelo, estado)
 		if total > 0 {
 			linea += fmt.Sprintf(" %3.0f%% de %s", 100*float64(hecho)/float64(total), gb(total))
@@ -151,10 +201,6 @@ func instalar(o *Ollama, modelo string, limite int64) error {
 	})
 	if color {
 		fmt.Print("\r\033[K")
-	}
-	if grande > 0 {
-		return fmt.Errorf("%s no cabe: pesa %s y Ollama tiene %s. Sube OLLAMA_MEM en .env, elige una versión más pequeña o usa --forzar",
-			modelo, gb(grande), gb(limite))
 	}
 	if err != nil {
 		return err

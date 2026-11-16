@@ -72,26 +72,66 @@ func TestPuertosOcupados(t *testing.T) {
 	}
 }
 
-func TestInstalarCortaSiNoCabe(t *testing.T) {
-	o := ollamaFalso(t, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"status":"pulling manifest"}`)
-		fmt.Fprintln(w, `{"status":"pulling abc","total":12000000000,"completed":1000}`)
-		w.(http.Flusher).Flush()
-		<-r.Context().Done() // la descarga seguiría: debe cortarla el cliente
+// registroFalso sirve manifiestos con el peso indicado y cuenta cuántas descargas llegan a Ollama.
+func registroFalso(t *testing.T, peso int64) (o *Ollama, descargas *int) {
+	t.Helper()
+	descargas = new(int)
+	o = ollamaFalso(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/manifests/35b"):
+			fmt.Fprintf(w, `{"layers":[{"size":%d},{"size":1000}]}`, peso-1000)
+		case r.URL.Path == "/api/pull":
+			*descargas++
+			fmt.Fprintln(w, `{"status":"success"}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
 	})
+	original := registroOllama
+	registroOllama = o.URL
+	t.Cleanup(func() { registroOllama = original })
+	return o, descargas
+}
+
+func TestInstalarNoEmpiezaSiNoCabe(t *testing.T) {
+	o, descargas := registroFalso(t, 12_000_000_000)
 	err := instalar(o, "grande:35b", 6<<30)
 	if err == nil || !strings.Contains(err.Error(), "no cabe") || !strings.Contains(err.Error(), "12.0 GB") {
 		t.Errorf("error = %v; quería el aviso de que no cabe con el peso", err)
 	}
+	if *descargas != 0 {
+		t.Error("no debía empezar la descarga: deja un archivo parcial del tamaño completo")
+	}
 }
 
-func TestInstalarSinLimiteNoCorta(t *testing.T) {
-	o := ollamaFalso(t, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"status":"pulling abc","total":12000000000,"completed":12000000000}`)
-		fmt.Fprintln(w, `{"status":"success"}`)
-	})
+func TestInstalarDescargaSiCabeOSinLimite(t *testing.T) {
+	o, descargas := registroFalso(t, 12_000_000_000)
 	if err := instalar(o, "grande:35b", 0); err != nil { // --forzar u Ollama nativo
-		t.Errorf("sin límite no debía cortar: %v", err)
+		t.Errorf("sin límite debía descargar: %v", err)
+	}
+	if err := instalar(o, "grande:35b", 14<<30); err != nil {
+		t.Errorf("cabe en 14 GB: %v", err)
+	}
+	if err := instalar(o, "sin-manifiesto:1b", 6<<30); err != nil { // peso desconocido: no bloquea
+		t.Errorf("sin manifiesto debía descargar: %v", err)
+	}
+	if *descargas != 3 {
+		t.Errorf("descargas = %d; quería 3", *descargas)
+	}
+}
+
+func TestURLManifiesto(t *testing.T) {
+	casos := map[string]string{
+		"qwen3.5:2b-q4_K_M": registroOllama + "/v2/library/qwen3.5/manifests/2b-q4_K_M",
+		"gemma4":            registroOllama + "/v2/library/gemma4/manifests/latest",
+		"usuario/modelo:7b": registroOllama + "/v2/usuario/modelo/manifests/7b",
+		"hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-IQ2_M": registroHF + "/v2/unsloth/Qwen3.6-35B-A3B-GGUF/manifests/UD-IQ2_M",
+		"huggingface.co/a/b":                          registroHF + "/v2/a/b/manifests/latest",
+	}
+	for modelo, want := range casos {
+		if got := urlManifiesto(modelo); got != want {
+			t.Errorf("urlManifiesto(%q) = %s; quería %s", modelo, got, want)
+		}
 	}
 }
 
