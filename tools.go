@@ -48,9 +48,9 @@ type Herramienta struct {
 func herramientas(dir string) []Herramienta {
 	dirNotas := filepath.Join(dir, "archivos", "notas")
 	return []Herramienta{
-		{Nombre: "disco", Descripcion: "Espacio del disco en GB", Tipo: tipoLectura,
+		{Nombre: "disco", Descripcion: "Espacio total, usado y libre del disco, en GB", Tipo: tipoLectura,
 			Claves: []string{"disco", "espacio", "almacenamiento"}, Ejecutar: sinArgs(disco)},
-		{Nombre: "memoria", Descripcion: "Memoria RAM en GB", Tipo: tipoLectura,
+		{Nombre: "memoria", Descripcion: "Memoria RAM total y disponible (libre), en GB", Tipo: tipoLectura,
 			Claves: []string{"memoria", "ram"}, Ejecutar: sinArgs(memoria)},
 		{Nombre: "temperatura", Descripcion: "Temperatura del procesador en °C", Tipo: tipoLectura,
 			Claves: []string{"temperatura", "caliente", "calor", "grados"}, Ejecutar: sinArgs(temperatura)},

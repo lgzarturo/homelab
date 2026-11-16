@@ -43,6 +43,7 @@ func sistema(hs []Herramienta) string {
 		"Nunca inventes cifras del equipo: los números salen solo de una herramienta. " +
 		"Si te piden guardar o anotar algo, usa escribir_nota. " +
 		"Para cualquier otra pregunta no uses herramientas: responde con lo que sabes. " +
+		"También conversas, haces cálculos, explicas tecnología y ayudas a administrar un servidor (comandos, cron, registros). " +
 		"Tus respuestas van en texto plano: sin asteriscos ni markdown, y no hagas preguntas al final."
 }
 
