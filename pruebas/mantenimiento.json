@@ -1,0 +1,50 @@
+{
+  "descripcion": "Tareas sencillas de mantenimiento de un servidor: leer salidas de comandos, clasificar y resumir logs, extraer datos y elegir la herramienta correcta.",
+  "casos": [
+    {
+      "nombre": "gravedad_log",
+      "prompt": "Clasifica la gravedad de este registro. Usa solo uno de estos valores: baja (informativo), media (se recuperó solo), alta (funciona con errores), critica (el servicio dejó de funcionar). Devuelve un objeto JSON con las claves \"gravedad\" y \"causa\".\n\n2026-11-14T03:11:58Z INFO  [n8n] workflow \"respaldo\" started\n2026-11-14T03:12:04Z WARN  [n8n] retrying write (2/3)\n2026-11-14T03:12:09Z FATAL [n8n] could not write to database: No space left on device\n2026-11-14T03:12:09Z INFO  [n8n] process exited with code 1",
+      "formato": "json",
+      "verificar": { "tipo": "json", "claves": ["causa"], "campos": { "gravedad": "critica" } }
+    },
+    {
+      "nombre": "disco_lleno",
+      "prompt": "Esta es la salida de df -h. Responde solo con el punto de montaje del sistema de archivos más lleno, sin más texto.\n\nFilesystem      Size  Used Avail Use% Mounted on\n/dev/sda2        98G   41G   52G  45% /\n/dev/sda1       511M  6.1M  505M   2% /boot/efi\n/dev/sdb1       458G  444G   14G  97% /var/lib/docker\ntmpfs           7.8G  1.2M  7.8G   1% /run\n/dev/sdc1       916G  512G  358G  59% /srv/archivos",
+      "verificar": { "tipo": "exacto", "valor": "/var/lib/docker" }
+    },
+    {
+      "nombre": "contenedor_caido",
+      "prompt": "Esta es la salida de docker ps -a. Responde solo con el nombre del contenedor que no está corriendo, sin más texto.\n\nNAMES                   STATUS\nia-local                Up 3 days (healthy)\nhomelab-open-webui-1    Up 3 days (healthy)\nhomelab-n8n-1           Exited (137) 2 hours ago\nhomelab-speaches-1      Up 3 days\nhomelab-filebrowser-1   Up 3 days (healthy)",
+      "verificar": { "tipo": "exacto", "valor": "homelab-n8n-1" }
+    },
+    {
+      "nombre": "extraer_json",
+      "prompt": "Extrae de esta línea de log el servicio y el código HTTP. Devuelve un objeto JSON con las claves \"servicio\" y \"codigo\".\n\n2026-11-14T03:12:09Z ERROR [speaches] upstream responded 503 after 3 retries",
+      "formato": "json",
+      "verificar": { "tipo": "json", "campos": { "servicio": "speaches", "codigo": "503" } }
+    },
+    {
+      "nombre": "resumen_log",
+      "prompt": "Este es el registro de anoche. Di en una frase qué servicio está fallando y por qué.\n\n2026-11-14T01:00:02Z INFO  [filebrowser] listening on :80\n2026-11-14T01:00:05Z INFO  [n8n] editor is now accessible\n2026-11-14T01:02:11Z INFO  [ollama] loaded model qwen3.5:2b-q4_K_M in 19.6s\n2026-11-14T01:14:40Z INFO  [open-webui] indexing document manual-lavadora.pdf (212 pages)\n2026-11-14T01:15:02Z WARN  [open-webui] memory usage 1.9GiB of 2GiB limit\n2026-11-14T01:15:09Z ERROR [kernel] Memory cgroup out of memory: Killed process 4121 (python) in container open-webui\n2026-11-14T01:15:10Z INFO  [docker] container open-webui exited with code 137, restarting (1)\n2026-11-14T01:17:31Z INFO  [open-webui] startup complete\n2026-11-14T01:20:03Z INFO  [speaches] transcribed 14.2s of audio in 3.9s\n2026-11-14T01:31:44Z INFO  [open-webui] indexing document manual-lavadora.pdf (212 pages)\n2026-11-14T01:32:07Z WARN  [open-webui] memory usage 1.9GiB of 2GiB limit\n2026-11-14T01:32:15Z ERROR [kernel] Memory cgroup out of memory: Killed process 5230 (python) in container open-webui\n2026-11-14T01:32:16Z INFO  [docker] container open-webui exited with code 137, restarting (2)\n2026-11-14T01:34:40Z INFO  [open-webui] startup complete\n2026-11-14T01:40:00Z INFO  [n8n] workflow \"respaldo\" finished in 41s\n2026-11-14T02:05:19Z INFO  [open-webui] indexing document manual-lavadora.pdf (212 pages)\n2026-11-14T02:05:44Z WARN  [open-webui] memory usage 1.9GiB of 2GiB limit\n2026-11-14T02:05:51Z ERROR [kernel] Memory cgroup out of memory: Killed process 6377 (python) in container open-webui\n2026-11-14T02:05:52Z INFO  [docker] container open-webui exited with code 137, restarting (3)\n2026-11-14T02:08:13Z INFO  [open-webui] startup complete\n2026-11-14T02:30:00Z INFO  [ollama] unloaded model qwen3.5:2b-q4_K_M after 10m idle\n2026-11-14T03:00:00Z INFO  [n8n] workflow \"limpieza\" finished in 3s",
+      "mide": "lectura",
+      "verificar": { "tipo": "contiene", "valores": ["webui"], "alguno": ["memoria", "oom", "ram"] }
+    },
+    {
+      "nombre": "cron",
+      "prompt": "Escribe solo la expresión cron de 5 campos para ejecutar una tarea todos los días a las 3:30 de la madrugada, sin más texto.",
+      "verificar": { "tipo": "exacto", "valor": "30 3 * * *" }
+    },
+    {
+      "nombre": "herramienta_disco",
+      "prompt": "¿Todavía queda espacio en el disco de este equipo?",
+      "herramientas": true,
+      "verificar": { "tipo": "llama", "valor": "disco" }
+    },
+    {
+      "nombre": "herramienta_no",
+      "prompt": "¿Para qué sirve el comando docker compose logs? Explícalo en una frase.",
+      "herramientas": true,
+      "verificar": { "tipo": "sin_llamadas" }
+    }
+  ]
+}

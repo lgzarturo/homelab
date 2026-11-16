@@ -18,7 +18,7 @@ func TestVerificadores(t *testing.T) {
 		}
 		return res
 	}
-	num := soloNumero("391")
+	num := exacto("391")
 	casos := []struct {
 		nombre string
 		ok     bool
@@ -30,9 +30,9 @@ func TestVerificadores(t *testing.T) {
 		{"no llamó a memoria", !llamo("memoria")(r("", "disco"))},
 		{"sin llamadas y con texto", sinLlamadas(r("Un contenedor es…"))},
 		{"con llamada no vale", !sinLlamadas(r("x", "contenedores"))},
-		{"json válido", jsonConClaves("nombre", "edad")(r(`{"nombre":"Ana","edad":30}`))},
-		{"json sin clave", !jsonConClaves("nombre", "edad")(r(`{"nombre":"Ana"}`))},
-		{"json roto", !jsonConClaves("nombre")(r(`nombre: Ana`))},
+		{"json válido", jsonCon([]string{"nombre", "edad"}, nil)(r(`{"nombre":"Ana","edad":30}`))},
+		{"json sin clave", !jsonCon([]string{"nombre", "edad"}, nil)(r(`{"nombre":"Ana"}`))},
+		{"json roto", !jsonCon([]string{"nombre"}, nil)(r(`nombre: Ana`))},
 	}
 	for _, c := range casos {
 		if !c.ok {
@@ -54,11 +54,11 @@ func TestMediana(t *testing.T) {
 func TestResumir(t *testing.T) {
 	si, no := true, false
 	res := resumir(ResultadoModelo{Pruebas: []Prueba{
-		{Caso: "velocidad", PrimeraPalabraS: 1, EscrituraTokS: 10, TokensSalida: 50},
-		{Caso: "velocidad", PrimeraPalabraS: 3, EscrituraTokS: 20, TokensSalida: 50},
+		{Caso: "velocidad", Mide: "primera_palabra", PrimeraPalabraS: 1, EscrituraTokS: 10, TokensSalida: 50},
+		{Caso: "velocidad", Mide: "primera_palabra", PrimeraPalabraS: 3, EscrituraTokS: 20, TokensSalida: 50},
 		{Caso: "aritmetica", OK: &si, EscrituraTokS: 99, TokensSalida: 2}, // muy pocos tokens: no cuenta para escritura
 		{Caso: "json", OK: &no, EscrituraTokS: 30, TokensSalida: 20},
-		{Caso: "documento_largo", OK: &si, LecturaTokS: 80, EscrituraTokS: 15, TokensSalida: 40},
+		{Caso: "documento_largo", Mide: "lectura", OK: &si, LecturaTokS: 80, EscrituraTokS: 15, TokensSalida: 40},
 		{Caso: "documento_largo", Error: "timeout"},
 	}})
 	if res.Aciertos != 2 || res.Verificados != 3 || res.Errores != 1 {
@@ -102,8 +102,12 @@ func TestBenchModeloContraOllamaFalso(t *testing.T) {
 		}
 	})
 	op := opcionesBench{Rondas: 1, Ctx: 2048, Hilos: 2, Tope: 256}
-	res := benchModelo(context.Background(), o, "m", op)
-	if res.Error != "" || res.Aciertos != 5 || res.Verificados != 5 || len(res.Pruebas) != len(suiteBench()) {
+	casos, err := cargarSuite(t.TempDir(), suitePorDefecto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := benchModelo(context.Background(), o, "m", op, casos)
+	if res.Error != "" || res.Aciertos != 5 || res.Verificados != 5 || len(res.Pruebas) != len(casos) || res.Hilos != 2 {
 		t.Fatalf("resultado = %+v", res)
 	}
 	if res.RAMGB != 2 || res.LecturaTokS != 100 || res.EscrituraTokS != 10 {

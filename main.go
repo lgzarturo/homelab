@@ -26,6 +26,7 @@ Comandos:
   pull <modelo>...          Descarga modelos de Ollama (avisa si no caben; --forzar)
   chat [modelo] [--pensar]  Conversa con el agente local (/ayuda dentro del chat)
   bench [modelos...]        Compara el rendimiento de los modelos (homelab bench -h)
+  bench compare             Cruza los informes guardados en resultados/
   version                   Muestra la versión
 
 Opciones globales:

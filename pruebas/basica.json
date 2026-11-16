@@ -1,0 +1,39 @@
+{
+  "descripcion": "Pruebas generales: velocidad, seguir instrucciones, uso de herramientas, JSON y lectura de un documento largo.",
+  "casos": [
+    {
+      "nombre": "velocidad",
+      "prompt": "Explica en un párrafo qué es Docker y para qué sirve.",
+      "mide": "primera_palabra"
+    },
+    {
+      "nombre": "aritmetica",
+      "prompt": "Responde solo con el número, sin texto: ¿cuánto es 17 × 23?",
+      "verificar": { "tipo": "exacto", "valor": "391" }
+    },
+    {
+      "nombre": "herramienta_si",
+      "prompt": "¿Cuánta memoria RAM libre tengo ahora mismo?",
+      "herramientas": true,
+      "verificar": { "tipo": "llama", "valor": "memoria" }
+    },
+    {
+      "nombre": "herramienta_no",
+      "prompt": "¿Qué es un contenedor de software? Explícalo en una frase.",
+      "herramientas": true,
+      "verificar": { "tipo": "sin_llamadas" }
+    },
+    {
+      "nombre": "json",
+      "prompt": "Devuelve un objeto JSON con las claves \"nombre\" y \"edad\" para Ana, que tiene 30 años.",
+      "formato": "json",
+      "verificar": { "tipo": "json", "claves": ["nombre", "edad"] }
+    },
+    {
+      "nombre": "documento_largo",
+      "prompt": "{{documento_largo}}\n\nResume el texto anterior en dos frases.",
+      "mide": "lectura",
+      "verificar": { "tipo": "no_vacia" }
+    }
+  ]
+}

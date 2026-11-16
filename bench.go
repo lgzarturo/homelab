@@ -28,53 +28,8 @@ type caso struct {
 	Prompt          string
 	ConHerramientas bool
 	Formato         string
+	Mide            string               // "lectura" o "primera_palabra": de qué caso sale esa mediana
 	Verificar       func(Respuesta) bool // nil: solo mide velocidad
-}
-
-// suiteBench son las pruebas en español. El bench nunca ejecuta herramientas: solo revisa cuál pidió el modelo.
-func suiteBench() []caso {
-	return []caso{
-		{Nombre: "velocidad", Prompt: "Explica en un párrafo qué es Docker y para qué sirve."},
-		{Nombre: "aritmetica", Prompt: "Responde solo con el número, sin texto: ¿cuánto es 17 × 23?", Verificar: soloNumero("391")},
-		{Nombre: "herramienta_si", Prompt: "¿Cuánta memoria RAM libre tengo ahora mismo?", ConHerramientas: true, Verificar: llamo("memoria")},
-		{Nombre: "herramienta_no", Prompt: "¿Qué es un contenedor de software? Explícalo en una frase.", ConHerramientas: true, Verificar: sinLlamadas},
-		{Nombre: "json", Prompt: `Devuelve un objeto JSON con las claves "nombre" y "edad" para Ana, que tiene 30 años.`, Formato: "json", Verificar: jsonConClaves("nombre", "edad")},
-		{Nombre: "documento_largo", Prompt: documentoLargo + "\n\nResume el texto anterior en dos frases.", Verificar: noVacia},
-	}
-}
-
-func soloNumero(esperado string) func(Respuesta) bool {
-	return func(r Respuesta) bool { return strings.Trim(strings.TrimSpace(r.Contenido), ".") == esperado }
-}
-
-func llamo(nombre string) func(Respuesta) bool {
-	return func(r Respuesta) bool {
-		for _, c := range r.Llamadas {
-			if c.Function.Name == nombre {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-func sinLlamadas(r Respuesta) bool { return len(r.Llamadas) == 0 && noVacia(r) }
-
-func noVacia(r Respuesta) bool { return strings.TrimSpace(r.Contenido) != "" }
-
-func jsonConClaves(claves ...string) func(Respuesta) bool {
-	return func(r Respuesta) bool {
-		var v map[string]any
-		if json.Unmarshal([]byte(strings.TrimSpace(r.Contenido)), &v) != nil {
-			return false
-		}
-		for _, c := range claves {
-			if _, ok := v[c]; !ok {
-				return false
-			}
-		}
-		return true
-	}
 }
 
 type opcionesBench struct {
@@ -107,6 +62,7 @@ type Equipo struct {
 
 type Prueba struct {
 	Caso            string   `json:"caso"`
+	Mide            string   `json:"mide,omitempty"`
 	Ronda           int      `json:"ronda"`
 	OK              *bool    `json:"ok,omitempty"`
 	Error           string   `json:"error,omitempty"`
@@ -122,6 +78,9 @@ type Prueba struct {
 
 type ResultadoModelo struct {
 	Modelo          string   `json:"modelo"`
+	Cuantizacion    string   `json:"cuantizacion,omitempty"`
+	Parametros      string   `json:"parametros,omitempty"`
+	Hilos           int      `json:"hilos"` // num_thread de esta corrida; 0 = lo decidió Ollama
 	Error           string   `json:"error,omitempty"`
 	CargaS          float64  `json:"carga_s"`
 	RAMGB           float64  `json:"ram_gb"`
@@ -136,6 +95,7 @@ type ResultadoModelo struct {
 
 type Informe struct {
 	Fecha    time.Time         `json:"fecha"`
+	Suite    string            `json:"suite,omitempty"`
 	Equipo   Equipo            `json:"equipo"`
 	Opciones opcionesBench     `json:"opciones"`
 	Modelos  []ResultadoModelo `json:"modelos"`
@@ -146,20 +106,36 @@ func cmdBench(flagDir string, args []string) error {
 	if err != nil {
 		return err
 	}
+	if len(args) > 0 && (args[0] == "compare" || args[0] == "comparar") {
+		return cmdBenchComparar(dir, args[1:])
+	}
 	env := leerEnv(dir)
 	fs := flag.NewFlagSet("bench", flag.ContinueOnError)
 	rondas := fs.Int("runs", 3, "repeticiones de la suite por modelo")
 	ctxTok := fs.Int("ctx", entero(env["OLLAMA_CTX"], 4096), "contexto en tokens (num_ctx)")
-	hilos := fs.Int("hilos", entero(env["OLLAMA_CPUS"], 0), "hilos de CPU (num_thread); 0 = los decide Ollama")
+	hilos := fs.String("hilos", fmt.Sprint(entero(env["OLLAMA_CPUS"], 0)), "hilos de CPU (num_thread); 0 = los decide Ollama. Varios separados por coma (2,4,8) repiten el benchmark con cada uno")
 	pensar := fs.Bool("pensar", false, "activa el razonamiento (think)")
+	suite := fs.String("suite", suitePorDefecto, "suite de pruebas: "+strings.Join(suitesDisponibles(dir), ", ")+", o la ruta a un .json")
 	salida := fs.String("salida", filepath.Join(dir, "resultados"), "carpeta donde se guarda el informe JSON")
 	fs.Usage = func() {
 		fmt.Fprintln(fs.Output(), "Uso: homelab bench [modelos...] [opciones]   (sin modelos: todos los instalados)")
+		fmt.Fprintln(fs.Output(), "     homelab bench compare [informes.json...]  (sin archivos: todos los de resultados/)")
 		fs.PrintDefaults()
 	}
 	modelos, err := parsear(fs, args)
 	if err != nil {
 		return err
+	}
+	casos, err := cargarSuite(dir, *suite)
+	if err != nil {
+		return err
+	}
+	var listaHilos []int
+	for _, h := range lista(*hilos) {
+		listaHilos = append(listaHilos, entero(h, 0))
+	}
+	if len(listaHilos) == 0 {
+		listaHilos = []int{0}
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -168,9 +144,9 @@ func cmdBench(flagDir string, args []string) error {
 	if err != nil {
 		return err
 	}
-	pesos := map[string]int64{}
+	instalados := map[string]ModeloInstalado{}
 	for _, m := range ms {
-		pesos[m.Name] = m.Size
+		instalados[m.Name] = m
 	}
 	if len(modelos) == 0 {
 		for _, m := range ms {
@@ -182,23 +158,30 @@ func cmdBench(flagDir string, args []string) error {
 	if len(modelos) == 0 {
 		return errors.New("no hay modelos instalados: homelab pull " + modeloPorDefecto)
 	}
-	op := opcionesBench{Rondas: max(*rondas, 1), Ctx: *ctxTok, Hilos: *hilos, Pensar: *pensar, Tope: 256}
+	op := opcionesBench{Rondas: max(*rondas, 1), Ctx: *ctxTok, Hilos: listaHilos[0], Pensar: *pensar, Tope: 256}
 	if op.Pensar {
 		op.Tope = 1024 // el razonamiento consume tokens antes de la respuesta
 	}
-	inf := Informe{Fecha: time.Now(), Equipo: equipo(ctx, o), Opciones: op}
-	fmt.Println(morado("🏁 Benchmark") + gris(fmt.Sprintf(" · %d modelos · %d rondas · ctx %d · hilos %s · think %v",
-		len(modelos), op.Rondas, op.Ctx, hilosTexto(op.Hilos), op.Pensar)))
+	inf := Informe{Fecha: time.Now(), Suite: strings.TrimSuffix(filepath.Base(*suite), ".json"), Equipo: equipo(ctx, o), Opciones: op}
+	fmt.Println(morado("🏁 Benchmark") + gris(fmt.Sprintf(" · suite %s · %d modelos · %d rondas · ctx %d · hilos %s · think %v",
+		inf.Suite, len(modelos), op.Rondas, op.Ctx, *hilos, op.Pensar)))
+corridas:
 	for _, m := range modelos {
-		if peso := pesos[nombreCompleto(m)]; cabe(peso, limite) == "no" {
-			msg := fmt.Sprintf("no cabe: pesa %s y Ollama tiene %s (sube OLLAMA_MEM en .env)", gb(peso), gb(limite))
+		inst := instalados[nombreCompleto(m)]
+		if cabe(inst.Size, limite) == "no" {
+			msg := fmt.Sprintf("no cabe: pesa %s y Ollama tiene %s (sube OLLAMA_MEM en .env)", gb(inst.Size), gb(limite))
 			fmt.Println("\n" + morado("▸ "+m) + "\n" + rojo("  ✗ "+msg))
 			inf.Modelos = append(inf.Modelos, ResultadoModelo{Modelo: m, Error: msg})
 			continue
 		}
-		inf.Modelos = append(inf.Modelos, benchModelo(ctx, o, m, op))
-		if ctx.Err() != nil {
-			break
+		for _, h := range listaHilos {
+			op.Hilos = h
+			res := benchModelo(ctx, o, m, op, casos)
+			res.Cuantizacion, res.Parametros = inst.Details.QuantizationLevel, inst.Details.ParameterSize
+			inf.Modelos = append(inf.Modelos, res)
+			if ctx.Err() != nil {
+				break corridas
+			}
 		}
 	}
 	imprimirTabla(inf.Modelos)
@@ -220,9 +203,10 @@ func hilosTexto(h int) string {
 	return fmt.Sprint(h)
 }
 
-func benchModelo(ctx context.Context, o *Ollama, modelo string, op opcionesBench) ResultadoModelo {
-	res := ResultadoModelo{Modelo: modelo}
-	fmt.Println("\n" + morado("▸ "+modelo))
+// benchModelo corre la suite contra un modelo. Nunca ejecuta herramientas: solo revisa cuál pidió el modelo.
+func benchModelo(ctx context.Context, o *Ollama, modelo string, op opcionesBench, casos []caso) ResultadoModelo {
+	res := ResultadoModelo{Modelo: modelo, Hilos: op.Hilos}
+	fmt.Println("\n" + morado("▸ "+modelo) + gris(" · hilos "+hilosTexto(op.Hilos)))
 	_ = o.Liberar(ctx, modelo) // empezar en frío
 	r := girar("cargando en memoria")
 	t := time.Now()
@@ -244,7 +228,6 @@ func benchModelo(ctx context.Context, o *Ollama, modelo string, op opcionesBench
 	fmt.Println(gris(fmt.Sprintf("  carga en frío %.1f s · %.1f GB en memoria", res.CargaS, res.RAMGB)))
 	hs := herramientas("") // sin carpeta: el bench nunca ejecuta herramientas
 	tools, sis := definiciones(hs), sistema(hs)
-	casos := suiteBench()
 	for ronda := 1; ronda <= op.Rondas; ronda++ {
 		for i, c := range casos {
 			if ctx.Err() != nil {
@@ -275,7 +258,7 @@ func correrCaso(ctx context.Context, o *Ollama, modelo string, op opcionesBench,
 	}
 	cctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	p := Prueba{Caso: c.Nombre, Ronda: ronda}
+	p := Prueba{Caso: c.Nombre, Mide: c.Mide, Ronda: ronda}
 	r, err := o.Chat(cctx, pet, nil)
 	if err != nil {
 		p.Error = err.Error()
@@ -310,10 +293,10 @@ func lineaPrueba(p Prueba, rondas int) string {
 		p.Ronda, rondas, p.Caso, p.TotalS, p.LecturaTokS, p.EscrituraTokS)))
 }
 
-// resumir calcula las medianas: lectura del documento largo, escritura de toda respuesta con al menos
-// 10 tokens y primera palabra de la prueba corta "velocidad".
+// resumir calcula las medianas: escritura de toda respuesta con al menos 10 tokens; lectura y primera
+// palabra de los casos que la suite marca con "mide" (si ninguno lo marca, de todos los casos).
 func resumir(res ResultadoModelo) ResultadoModelo {
-	var lectura, escritura, primera []float64
+	var lectura, escritura, primera, todasLectura, todasPrimera []float64
 	for _, p := range res.Pruebas {
 		if p.Error != "" {
 			res.Errores++
@@ -328,12 +311,19 @@ func resumir(res ResultadoModelo) ResultadoModelo {
 		if p.TokensSalida >= 10 {
 			escritura = append(escritura, p.EscrituraTokS)
 		}
-		switch p.Caso {
-		case "documento_largo":
+		todasLectura, todasPrimera = append(todasLectura, p.LecturaTokS), append(todasPrimera, p.PrimeraPalabraS)
+		switch p.Mide {
+		case "lectura":
 			lectura = append(lectura, p.LecturaTokS)
-		case "velocidad":
+		case "primera_palabra":
 			primera = append(primera, p.PrimeraPalabraS)
 		}
+	}
+	if len(lectura) == 0 {
+		lectura = todasLectura
+	}
+	if len(primera) == 0 {
+		primera = todasPrimera
 	}
 	res.LecturaTokS, res.EscrituraTokS, res.PrimeraPalabraS = mediana(lectura), mediana(escritura), mediana(primera)
 	return res
@@ -355,17 +345,17 @@ func mediana(xs []float64) float64 {
 func imprimirTabla(rs []ResultadoModelo) {
 	fmt.Println()
 	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "MODELO\tCARGA\tRAM\tLECTURA\tESCRITURA\t1ª PALABRA\tACIERTOS\tERRORES")
+	fmt.Fprintln(tw, "MODELO\tHILOS\tCARGA\tRAM\tLECTURA\tESCRITURA\t1ª PALABRA\tACIERTOS\tERRORES")
 	for _, r := range rs {
 		if r.Error != "" {
-			fmt.Fprintf(tw, "%s\t-\t-\t-\t-\t-\t-\t%s\n", r.Modelo, recortar(r.Error, 50))
+			fmt.Fprintf(tw, "%s\t-\t-\t-\t-\t-\t-\t-\t%s\n", r.Modelo, recortar(r.Error, 50))
 			continue
 		}
-		fmt.Fprintf(tw, "%s\t%.1f s\t%.1f GB\t%.0f tok/s\t%.1f tok/s\t%.1f s\t%d/%d\t%d\n",
-			r.Modelo, r.CargaS, r.RAMGB, r.LecturaTokS, r.EscrituraTokS, r.PrimeraPalabraS, r.Aciertos, r.Verificados, r.Errores)
+		fmt.Fprintf(tw, "%s\t%s\t%.1f s\t%.1f GB\t%.0f tok/s\t%.1f tok/s\t%.1f s\t%d/%d\t%d\n",
+			r.Modelo, hilosTexto(r.Hilos), r.CargaS, r.RAMGB, r.LecturaTokS, r.EscrituraTokS, r.PrimeraPalabraS, r.Aciertos, r.Verificados, r.Errores)
 	}
 	tw.Flush()
-	fmt.Println(gris("  Medianas. LECTURA: velocidad leyendo un documento (pesa en RAG). ESCRITURA: velocidad generando."))
+	fmt.Println(gris("  Medianas. LECTURA: velocidad leyendo un texto largo (pesa en RAG y en logs). ESCRITURA: velocidad generando."))
 }
 
 func equipo(ctx context.Context, o *Ollama) Equipo {
