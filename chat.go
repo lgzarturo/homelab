@@ -50,6 +50,7 @@ type sesion struct {
 	o         *Ollama
 	modelo    string
 	pensar    bool
+	hilos     int // num_thread; 0 = lo decide Ollama
 	hs        []Herramienta
 	tools     []Tool
 	sistema   string
@@ -67,8 +68,9 @@ func cmdChat(flagDir string, args []string) error {
 	if err != nil {
 		return err
 	}
+	env := leerEnv(dir)
 	modelo := modeloPorDefecto
-	if ms := lista(leerEnv(dir)["OLLAMA_MODELS"]); len(ms) > 0 {
+	if ms := lista(env["OLLAMA_MODELS"]); len(ms) > 0 {
 		modelo = ms[0]
 	}
 	if len(pos) > 0 {
@@ -79,7 +81,8 @@ func cmdChat(flagDir string, args []string) error {
 		return err
 	}
 	hs := herramientas(filepath.Join(dir, "archivos", "notas"))
-	s := &sesion{o: o, modelo: modelo, pensar: *pensar, hs: hs, tools: definiciones(hs), sistema: sistema(hs)}
+	// Sin num_thread, Ollama crea un hilo por núcleo que ve y todos compiten por la cuota de OLLAMA_CPUS.
+	s := &sesion{o: o, modelo: modelo, pensar: *pensar, hilos: entero(env["OLLAMA_CPUS"], 0), hs: hs, tools: definiciones(hs), sistema: sistema(hs)}
 	return s.repl(os.Stdin)
 }
 
@@ -216,7 +219,11 @@ func (s *sesion) pedir(ctx context.Context, mensajes []Mensaje, texto string, al
 	rueda := girar(texto)
 	defer rueda.parar()
 	escribiendo, pensando := false, false
-	pet := PeticionChat{Model: s.modelo, Messages: mensajes, Tools: s.tools, Think: s.pensar, Options: map[string]any{"temperature": 0.4}}
+	opciones := map[string]any{"temperature": 0.4}
+	if s.hilos > 0 {
+		opciones["num_thread"] = s.hilos
+	}
+	pet := PeticionChat{Model: s.modelo, Messages: mensajes, Tools: s.tools, Think: s.pensar, Options: opciones}
 	r, err := s.o.Chat(ctx, pet, func(t string, esPensamiento bool) {
 		if esPensamiento {
 			rueda.parar()
