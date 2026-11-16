@@ -50,7 +50,8 @@ Opción global `--dir <ruta>` (o la variable `HOMELAB_DIR`) para elegir la carpe
 ## Chat
 
 ```bash
-homelab chat qwen3.5:2b-q4_K_M
+homelab chat                      # usa el primer modelo de OLLAMA_MODELS (qwen3.5:4b-q4_K_M)
+homelab chat gemma4:e2b-it-qat    # o el que elijas
 ```
 
 Dentro del chat:
@@ -95,6 +96,25 @@ homelab rm hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-IQ2_M
 ```
 
 Los modelos de Hugging Face se usan con su nombre completo en `chat`, `ask` y `bench`. `pull` consulta el peso antes de descargar y no empieza si no cabe en `OLLAMA_MEM`.
+
+### Qué modelo usar
+
+Medido en un equipo de 16 núcleos con Ollama limitado a 2 hilos y contexto de 4096 (3 rondas, suites `basica` y `mantenimiento`; los tres últimos, 1 ronda):
+
+| Modelo | RAM | Aciertos | Usa las herramientas | Escritura | 1ª palabra |
+|---|---|---|---|---|---|
+| `qwen3.5:4b-q4_K_M` (por defecto) | 3.1 GB | 31/39 | 12/12 | 8 tok/s | 14–22 s |
+| `gemma4:e2b-it-qat` | 3.5 GB | 31/39 | 6/12 | 16 tok/s | 2–4 s |
+| `qwen3.5:2b-q4_K_M` | 1.6 GB | 22/39 | 10/12 | 18 tok/s | 5–8 s |
+| `qwen3.5:9b` | 6.2 GB | 10/13 | 2/4 | 5 tok/s | 26–38 s |
+| `mimo-v2.6:9b` | 6.2 GB | 11/13 | 3/4 | 2–5 tok/s | 39 s |
+| `hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-IQ2_M` | 12.0 GB | 13/13 | 4/4 | 5–8 tok/s | 20–22 s |
+
+- **`qwen3.5:4b-q4_K_M`** es el modelo por defecto: es el único pequeño que consulta siempre las herramientas en vez de inventar cifras de disco o memoria. Es lento (20 a 60 s por respuesta con 2 hilos).
+- **`gemma4:e2b-it-qat`** responde entre 5 y 8 veces más rápido y sigue mejor el formato pedido (cron, nombres exactos). Úsalo para resumir o clasificar texto que tú le pasas; no para preguntarle por el equipo, porque contesta sin mirar.
+- Los modelos de 9B y Qwen 3.6 no caben en el límite de 6 GB: hay que subir `OLLAMA_MEM` (14g para Qwen 3.6).
+
+Repite la medición en tu equipo con `homelab bench` y `homelab bench --suite mantenimiento`.
 
 ### Modo laboratorio
 

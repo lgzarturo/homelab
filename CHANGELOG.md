@@ -22,6 +22,7 @@
 - CI en GitHub Actions: pruebas en Linux, macOS y Windows, validación de `compose.yml` y binarios publicados al etiquetar `v*`.
 
 ### Changed
+- El modelo por defecto del chat pasa de `qwen3.5:2b-q4_K_M` a `qwen3.5:4b-q4_K_M`: en el benchmark es el único modelo pequeño que consulta siempre las herramientas (31/39 aciertos frente a 22/39).
 - `compose.yml`: versiones fijas (Portainer 2.45.3, Filebrowser v2.63.23, n8n 2.46.6, Open WebUI v0.12.5, Speaches 0.9.0-rc.3), healthcheck de Ollama, `OLLAMA_CONTEXT_LENGTH`, y límites, zona horaria y usuario de Filebrowser configurables.
 - Los paneles escuchan por defecto solo en `127.0.0.1`; se abren a la red con `BIND_IP=0.0.0.0`.
 - Las palabras clave del agente se comparan como palabras completas y sin acentos.

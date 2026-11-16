@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const modeloPorDefecto = "qwen3.5:2b-q4_K_M"
+const modeloPorDefecto = "qwen3.5:4b-q4_K_M"
 
 // nombreCompleto agrega la etiqueta :latest que Ollama asume cuando no se indica.
 func nombreCompleto(m string) string {
