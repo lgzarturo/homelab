@@ -70,23 +70,26 @@
 <h2>1 · Antes de empezar</h2>
 <table>
   <tr><td><b>Docker</b></td><td>Docker Desktop (Windows, macOS) o Docker Engine (Linux), <b>encendido</b>.</td></tr>
-  <tr><td><b>Git</b></td><td>Para bajar el código.</td></tr>
-  <tr><td><b>Go 1.26+</b></td><td>Para compilar el binario. En Windows: <code>winget install GoLang.Go</code></td></tr>
   <tr><td><b>Memoria</b></td><td>16 GB recomendados. Con 8 GB deja solo <code>ollama,openwebui</code> en <code>COMPOSE_PROFILES</code>.</td></tr>
   <tr><td><b>Internet</b></td><td>Solo la primera vez, para descargar imágenes y modelos (varios GB).</td></tr>
 </table>
 </section>
 
 <section>
-<h2>2 · Bajar, compilar y levantar</h2>
+<h2>2 · Descargar y levantar</h2>
 <ol>
-  <li>Baja el código y entra a la carpeta:
-<pre>git clone https://github.com/lgzarturo/homelab.git
-cd homelab</pre></li>
-  <li>Compila el binario:
-<pre>go build -o homelab.exe .   <i># Windows</i>
-go build -o homelab .       <i># macOS y Linux</i></pre></li>
-  <li>Levanta todo: crea <code>.env</code>, arranca los servicios y descarga los modelos.
+  <li>Descarga el binario de tu sistema desde <b>github.com/lgzarturo/homelab/releases</b>:
+<table>
+  <tr><td>Windows</td><td><code>homelab-windows-amd64.exe</code></td></tr>
+  <tr><td>Linux (Fedora, Ubuntu…)</td><td><code>homelab-linux-amd64</code> · ARM: <code>-arm64</code></td></tr>
+  <tr><td>macOS</td><td><code>homelab-darwin-arm64</code> · Intel: <code>-amd64</code></td></tr>
+</table></li>
+  <li>Abre una terminal en la carpeta donde lo guardaste y renómbralo:
+<pre>ren homelab-windows-amd64.exe homelab.exe   <i># Windows</i>
+mv homelab-linux-amd64 homelab              <i># Linux</i>
+mv homelab-darwin-arm64 homelab             <i># macOS</i>
+chmod +x homelab                     <i># Linux y macOS</i></pre></li>
+  <li>Levanta todo: crea la carpeta <code>homelab</code> en tu usuario con <code>.env</code>, arranca los servicios y descarga los modelos.
 <pre>.\homelab.exe up            <i># Windows (PowerShell)</i>
 ./homelab up                <i># macOS y Linux</i></pre></li>
   <li>Comprueba que todo quedó bien:
@@ -95,7 +98,7 @@ go build -o homelab .       <i># macOS y Linux</i></pre></li>
   <li>Conversa:
 <pre>.\homelab.exe chat</pre></li>
 </ol>
-<p class="gris">En el resto de la guía, <code>homelab</code> significa <code>.\homelab.exe</code> en Windows y <code>./homelab</code> en macOS y Linux, ejecutado dentro de la carpeta del proyecto.</p>
+<p class="gris">En el resto de la guía, <code>homelab</code> significa <code>.\homelab.exe</code> en Windows y <code>./homelab</code> en macOS y Linux, ejecutado en la carpeta donde guardaste el binario. No hace falta Git ni Go; para compilarlo tú, mira el README.</p>
 </section>
 
 <section>
