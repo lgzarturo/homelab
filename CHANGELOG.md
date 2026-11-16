@@ -15,6 +15,11 @@
 - Suites del benchmark en archivos JSON (`pruebas/`): nueva suite `mantenimiento` con 8 tareas de administración, y suites propias en `<carpeta>/pruebas/` sin recompilar (`--suite`).
 - `homelab bench compare` cruza los informes guardados por modelo, suite, equipo y fecha; los informes guardan cuantización, parámetros, suite e hilos de cada corrida.
 - `homelab bench --hilos 2,4,8` repite cada modelo con cada número de hilos.
+- Herramientas de solo lectura nuevas para el agente: `servicios`, `logs_servicio` (servicio de lista cerrada), `procesos` y `leer_notas`.
+- `homelab ask "pregunta"`: una sola respuesta sin chat, para scripts, cron o n8n; `--nota` la guarda en `archivos/notas/`.
+- `homelab rm` borra modelos; `homelab pull` documentado con modelos de Hugging Face (`hf.co/usuario/repo:cuantización`).
+- `homelab up --lab`: solo Ollama, detiene los demás servicios para medir modelos.
+- CI en GitHub Actions: pruebas en Linux, macOS y Windows, validación de `compose.yml` y binarios publicados al etiquetar `v*`.
 
 ### Changed
 - `compose.yml`: versiones fijas (Portainer 2.45.3, Filebrowser v2.63.23, n8n 2.46.6, Open WebUI v0.12.5, Speaches 0.9.0-rc.3), healthcheck de Ollama, `OLLAMA_CONTEXT_LENGTH`, y límites, zona horaria y usuario de Filebrowser configurables.

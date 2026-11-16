@@ -33,12 +33,14 @@ Recomendado: 16 GB de RAM. Con 8 GB, deja solo `ollama,openwebui` en `COMPOSE_PR
 
 | Comando | Qué hace |
 |---|---|
-| `homelab up [--sin-modelos]` | Levanta los servicios y descarga lo que falte. Vuelve a ejecutarlo tras editar `.env`. |
+| `homelab up [--sin-modelos] [--lab]` | Levanta los servicios y descarga lo que falte. Vuelve a ejecutarlo tras editar `.env`. `--lab` deja solo Ollama (ver «Modo laboratorio»). |
 | `homelab down` | Detiene los servicios (los datos se conservan). |
 | `homelab status` | Estado de cada servicio, versión de Ollama, modelo en memoria y URLs. |
 | `homelab logs [servicio] [-f]` | Logs de los servicios, por ejemplo `homelab logs ollama -f`. |
 | `homelab models` | Modelos instalados: tamaño, parámetros, cuantización y capacidades. |
 | `homelab pull <modelo>... [--forzar]` | Descarga modelos, por ejemplo `homelab pull qwen3.5:4b-q4_K_M`. Antes de descargar consulta el peso y no empieza si el modelo no cabe en la memoria de Ollama; `--forzar` la salta. |
+| `homelab rm <modelo>...` | Borra modelos instalados. |
+| `homelab ask "pregunta"` | Una sola respuesta, sin chat: para scripts, cron o n8n. |
 | `homelab doctor` | Revisa que Docker responda, que los límites de memoria quepan en Docker, que la carpeta permita escribir, los puertos y los modelos que no caben. |
 | `homelab chat [modelo] [--pensar]` | Conversa con el agente local. |
 | `homelab bench [modelos...]` | Compara el rendimiento de los modelos; `homelab bench compare` cruza los informes guardados. |
@@ -67,10 +69,44 @@ Dentro del chat:
 
 Un modelo de 2B se equivoca a menudo, así que el agente **solo** tiene:
 
-- **Lectura del equipo:** disco, memoria, temperatura, tiempo encendido y número de contenedores (`docker ps -q`, con argumentos fijos).
+- **Lectura del equipo:** disco, memoria, temperatura, tiempo encendido, número de contenedores y los 5 programas que más memoria usan (solo nombre y MB; nunca usuarios ni rutas).
+- **Lectura del homelab:** estado de cada servicio, las últimas 30 líneas del log de un servicio y las 5 notas más recientes. El servicio de `logs_servicio` sale de una lista cerrada (ollama, open-webui, speaches, n8n, filebrowser, portainer): el modelo nunca pasa texto libre a un comando.
 - **Notas Markdown:** `escribir_nota` crea un archivo `.md` nuevo en `archivos/notas/` (lo ves en Filebrowser). Nunca sobrescribe: si el nombre existe, agrega `-2`, `-3`… Tamaño máximo de 64 KB y el nombre de archivo se limpia.
 
 No existe ninguna herramienta que borre, reinicie o envíe nada. La prueba `TestHerramientasPermitidas` falla si alguien agrega una. La temperatura solo está disponible en Linux; en macOS y Windows el agente lo dice en vez de inventar una cifra.
+
+## Una sola pregunta (`ask`)
+
+```bash
+homelab ask "¿Cómo están el disco y la memoria?"
+homelab ask --nota "Informe diario" "Revisa disco, memoria y servicios y resume el estado en 3 frases"
+docker compose logs --tail 50 n8n | homelab ask "Resume en una frase si hay errores en este log"
+```
+
+Escribe solo la respuesta en la salida estándar y termina con código 1 si algo falla, así sirve en scripts, en una tarea programada (cron o el Programador de tareas) o en un nodo *Execute Command* de n8n si n8n corre en el mismo equipo que el binario. Usa las mismas herramientas de solo lectura que el chat. `--nota "título"` guarda además la respuesta como nota en `archivos/notas/`; `--modelo` y `--pensar` funcionan como en el chat. Sin pregunta, la lee de la entrada estándar.
+
+## Modelos
+
+```bash
+homelab pull qwen3.5:4b-q4_K_M                             # biblioteca de Ollama
+homelab pull hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-IQ2_M   # cualquier GGUF de Hugging Face: hf.co/<usuario>/<repo>:<cuantización>
+homelab models
+homelab rm hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-IQ2_M
+```
+
+Los modelos de Hugging Face se usan con su nombre completo en `chat`, `ask` y `bench`. `pull` consulta el peso antes de descargar y no empieza si no cabe en `OLLAMA_MEM`.
+
+### Modo laboratorio
+
+Para medir modelos sin que los demás servicios ocupen memoria:
+
+```bash
+homelab up --lab                  # solo Ollama; detiene Open WebUI, Speaches, n8n, Filebrowser y Portainer
+OLLAMA_MEM=14g homelab up --lab   # además, más memoria para Ollama solo en esta ejecución (no toca .env)
+homelab up                        # vuelve a levantar todo con los valores de .env
+```
+
+En PowerShell: `$env:OLLAMA_MEM = "14g"; homelab up --lab`.
 
 ## Benchmark
 
@@ -221,6 +257,12 @@ Dentro de Docker, `127.0.0.1` es el propio contenedor. Usa los nombres de los se
 ```bash
 go test ./...
 scripts/build.sh            # binarios para linux/darwin (amd64, arm64) y windows/amd64 en dist/
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) corre formato, `go vet` y las pruebas en Linux, macOS y Windows, y valida `compose.yml`. Al subir una etiqueta `v*` compila los 5 binarios y los publica en un release:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
 Requiere Go 1.26 o superior. La única dependencia externa es `gopsutil`, para leer memoria, disco y uptime en los tres sistemas.
