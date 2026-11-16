@@ -11,7 +11,10 @@
 - `.env.example` con todas las variables, y profiles por servicio para activarlos o quitarlos.
 - `scripts/build.sh` para compilación cruzada; `README.md`.
 - `homelab doctor`: revisa Docker, la memoria de Docker contra los límites, la escritura en la carpeta, los puertos y los modelos que no caben.
-- `homelab pull` corta la descarga de un modelo que no cabe en la memoria de Ollama (`--forzar` la salta), y `homelab bench` lo omite con un error claro.
+- `homelab pull` consulta el peso del modelo en el registro (Ollama o Hugging Face) y no empieza la descarga si no cabe en la memoria de Ollama (`--forzar` lo salta); `homelab bench` lo omite con un error claro.
+- Suites del benchmark en archivos JSON (`pruebas/`): nueva suite `mantenimiento` con 8 tareas de administración, y suites propias en `<carpeta>/pruebas/` sin recompilar (`--suite`).
+- `homelab bench compare` cruza los informes guardados por modelo, suite, equipo y fecha; los informes guardan cuantización, parámetros, suite e hilos de cada corrida.
+- `homelab bench --hilos 2,4,8` repite cada modelo con cada número de hilos.
 
 ### Changed
 - `compose.yml`: versiones fijas (Portainer 2.45.3, Filebrowser v2.63.23, n8n 2.46.6, Open WebUI v0.12.5, Speaches 0.9.0-rc.3), healthcheck de Ollama, `OLLAMA_CONTEXT_LENGTH`, y límites, zona horaria y usuario de Filebrowser configurables.

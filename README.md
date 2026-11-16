@@ -38,10 +38,10 @@ Recomendado: 16 GB de RAM. Con 8 GB, deja solo `ollama,openwebui` en `COMPOSE_PR
 | `homelab status` | Estado de cada servicio, versión de Ollama, modelo en memoria y URLs. |
 | `homelab logs [servicio] [-f]` | Logs de los servicios, por ejemplo `homelab logs ollama -f`. |
 | `homelab models` | Modelos instalados: tamaño, parámetros, cuantización y capacidades. |
-| `homelab pull <modelo>... [--forzar]` | Descarga modelos, por ejemplo `homelab pull qwen3.5:4b-q4_K_M`. Corta la descarga si el modelo no cabe en la memoria de Ollama; `--forzar` la salta. |
+| `homelab pull <modelo>... [--forzar]` | Descarga modelos, por ejemplo `homelab pull qwen3.5:4b-q4_K_M`. Antes de descargar consulta el peso y no empieza si el modelo no cabe en la memoria de Ollama; `--forzar` la salta. |
 | `homelab doctor` | Revisa que Docker responda, que los límites de memoria quepan en Docker, que la carpeta permita escribir, los puertos y los modelos que no caben. |
 | `homelab chat [modelo] [--pensar]` | Conversa con el agente local. |
-| `homelab bench [modelos...]` | Compara el rendimiento de los modelos. |
+| `homelab bench [modelos...]` | Compara el rendimiento de los modelos; `homelab bench compare` cruza los informes guardados. |
 
 Opción global `--dir <ruta>` (o la variable `HOMELAB_DIR`) para elegir la carpeta del homelab. `OLLAMA_URL` cambia la dirección de Ollama y `NO_COLOR=1` quita los colores.
 
@@ -78,9 +78,12 @@ No existe ninguna herramienta que borre, reinicie o envíe nada. La prueba `Test
 homelab bench                         # todos los modelos instalados, 3 rondas
 homelab bench qwen3.5:2b-q4_K_M gemma4:e2b-it-qat --runs 1
 homelab bench --pensar                # con razonamiento activado
+homelab bench --suite mantenimiento   # tareas de mantenimiento en vez de la suite básica
+homelab bench --hilos 2,4,8           # repite cada modelo con 2, 4 y 8 hilos
+homelab bench compare                 # cruza todos los informes guardados
 ```
 
-Para cada modelo: lo saca de memoria, mide la carga en frío y la RAM que ocupa, y corre 6 pruebas en español:
+Para cada modelo: lo saca de memoria, mide la carga en frío y la RAM que ocupa, y corre una suite de pruebas en español. La suite por defecto, `basica`, tiene 6:
 
 | Prueba | Qué verifica |
 |---|---|
@@ -90,6 +93,50 @@ Para cada modelo: lo saca de memoria, mide la carga en frío y la RAM que ocupa,
 | `herramienta_no` | **No** pedir herramientas en una pregunta de cultura general |
 | `json` | Devolver JSON válido con las claves pedidas |
 | `documento_largo` | Resumir un texto de ~1500 tokens (mide la velocidad de lectura) |
+
+La suite `mantenimiento` tiene 8 tareas sencillas de administración de un servidor:
+
+| Prueba | Qué verifica |
+|---|---|
+| `gravedad_log` | Clasificar como crítica una caída por disco lleno, en JSON |
+| `disco_lleno` | Encontrar en la salida de `df -h` el sistema de archivos más lleno |
+| `contenedor_caido` | Encontrar en `docker ps -a` el contenedor detenido |
+| `extraer_json` | Sacar servicio y código HTTP de una línea de log, en JSON |
+| `resumen_log` | Decir qué servicio falla y por qué en un registro de 22 líneas (mide la lectura) |
+| `cron` | Escribir la expresión cron de "todos los días a las 3:30" |
+| `herramienta_disco` | Pedir la herramienta `disco` cuando le preguntan por el espacio |
+| `herramienta_no` | **No** pedir herramientas al explicar un comando |
+
+### Suites propias
+
+Cada suite es un archivo JSON. Para agregar la tuya sin recompilar, crea `pruebas/<nombre>.json` en la carpeta del homelab y úsala con `--suite <nombre>` (también acepta la ruta a un `.json`). Si se llama igual que una del binario, gana la tuya.
+
+```json
+{
+  "casos": [
+    {
+      "nombre": "puerto_ocupado",
+      "prompt": "Responde solo con el número del puerto que está ocupado: bind: address already in use 0.0.0.0:8080",
+      "verificar": { "tipo": "exacto", "valor": "8080" }
+    }
+  ]
+}
+```
+
+Campos de cada caso: `nombre`, `prompt`, `herramientas` (ofrece las herramientas del agente), `formato` (`"json"` obliga a responder en JSON), `mide` (`"lectura"` o `"primera_palabra"`: de qué caso sale esa mediana) y `verificar`. Sin `verificar`, el caso solo mide velocidad. `{{documento_largo}}` dentro del prompt inserta el texto largo de prueba.
+
+| `tipo` | Pasa si… | Campos |
+|---|---|---|
+| `exacto` | la respuesta es solo ese texto (ignora espacios, punto final y comillas) | `valor` |
+| `contiene` | aparecen todos los `valores` y, si hay, al menos uno de `alguno` (sin mayúsculas ni acentos) | `valores`, `alguno` |
+| `llama` | el modelo pidió esa herramienta | `valor` |
+| `sin_llamadas` | respondió con texto sin pedir herramientas | — |
+| `json` | es un objeto JSON con esas `claves` y con cada campo de `campos` en su valor | `claves`, `campos` |
+| `no_vacia` | respondió algo | — |
+
+### Comparar informes
+
+`homelab bench compare` lee todos los informes de `resultados/` (o los archivos que le pases) y muestra una fila por modelo y corrida, con cuantización, suite, equipo, fecha, hilos y si usó razonamiento. Copia a `resultados/` los informes de otros equipos para compararlos.
 
 Para comparar en igualdad, todas las peticiones fijan `temperature 0`, `seed 42`, `num_ctx`, `num_thread` y `num_predict`. El benchmark **nunca ejecuta** herramientas: solo revisa cuál pidió el modelo.
 
@@ -104,7 +151,9 @@ Cómo leer la tabla (medianas):
 
 El informe completo, con las respuestas y los datos del equipo, se guarda en `resultados/bench-<equipo>-<fecha>.json`, para comparar dispositivos o versiones.
 
-Opciones: `--runs N`, `--ctx N` (por defecto `OLLAMA_CTX`), `--hilos N` (por defecto `OLLAMA_CPUS`), `--pensar` y `--salida <carpeta>`.
+Opciones: `--runs N`, `--ctx N` (por defecto `OLLAMA_CTX`), `--hilos N` o `--hilos 2,4,8` (por defecto `OLLAMA_CPUS`), `--suite <nombre>`, `--pensar` y `--salida <carpeta>`.
+
+Los hilos por encima de `OLLAMA_CPUS` no aceleran nada: el contenedor no puede usar más núcleos que esos. Para un barrido real, sube antes `OLLAMA_CPUS` y ejecuta `homelab up`.
 
 **Consejo:** `OLLAMA_CPUS` limita los núcleos del contenedor y es lo que más influye en los tokens/s. Prueba con 2 y con 4 (o más), ejecuta `homelab up` y repite el benchmark.
 
