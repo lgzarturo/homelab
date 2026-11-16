@@ -19,7 +19,7 @@
 - `homelab ask "pregunta"`: una sola respuesta sin chat, para scripts, cron o n8n; `--nota` la guarda en `archivos/notas/`.
 - `homelab rm` borra modelos; `homelab pull` documentado con modelos de Hugging Face (`hf.co/usuario/repo:cuantización`).
 - `homelab up --lab`: solo Ollama, detiene los demás servicios para medir modelos.
-- CI en GitHub Actions: pruebas en Linux, macOS y Windows, validación de `compose.yml` y binarios publicados al etiquetar `v*`.
+- CI en GitHub Actions: pruebas en Linux en automático y en macOS y Windows solo al lanzarlo a mano, validación de `compose.yml` y binarios publicados al etiquetar `v*`.
 
 ### Changed
 - El modelo por defecto del chat pasa de `qwen3.5:2b-q4_K_M` a `qwen3.5:4b-q4_K_M`: en el benchmark es el único modelo pequeño que consulta siempre las herramientas (31/39 aciertos frente a 22/39).

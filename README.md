@@ -279,7 +279,7 @@ go test ./...
 scripts/build.sh            # binarios para linux/darwin (amd64, arm64) y windows/amd64 en dist/
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) corre formato, `go vet` y las pruebas en Linux, macOS y Windows, y valida `compose.yml`. Al subir una etiqueta `v*` compila los 5 binarios y los publica en un release:
+GitHub Actions (`.github/workflows/ci.yml`) corre formato, `go vet` y las pruebas en Linux y valida `compose.yml` en cada push y pull request. Las pruebas en macOS y Windows gastan muchos más minutos, así que solo corren al lanzarlo a mano: pestaña Actions → CI → Run workflow, o `gh workflow run ci.yml`. Al subir una etiqueta `v*` compila los 5 binarios y los publica en un release:
 
 ```bash
 git tag v1.0.0 && git push origin v1.0.0
