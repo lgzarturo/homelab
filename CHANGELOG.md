@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Guía rápida imprimible en tamaño carta (`docs/cheatsheet.pdf`, fuente en `docs/cheatsheet.html`): instalación, chat, herramientas, comandos y modelos.
 - CLI `homelab` en Go, un binario para Linux, macOS y Windows con los comandos `up`, `down`, `status`, `logs`, `models`, `pull`, `chat`, `bench` y `version`.
 - `homelab bench`: compara modelos midiendo carga en frío, RAM, velocidad de lectura y de escritura y espera hasta la primera palabra. Corre 5 verificaciones automáticas en español y guarda el informe en `resultados/`.
 - Comandos dentro del chat: `/modelo`, `/modelos`, `/pensar`, `/limpiar` y `/salir`. Ctrl+C corta la respuesta sin cerrar el chat.

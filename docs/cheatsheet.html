@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homelab de IA local · Guía rápida</title>
+<style>
+  @page { size: letter; margin: 9mm 11mm; }
+  :root { --tinta: #14181d; --gris: #5b6570; --linea: #c9d0d6; --fondo: #f1f4f6; --acento: #0b5d7a; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; color: var(--tinta); background: #fff;
+         font: 8pt/1.3 "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  .hoja { break-after: page; }
+  .hoja:last-child { break-after: auto; }
+  @media screen {
+    body { background: #dfe4e8; }
+    .hoja { background: #fff; padding: 11mm 12mm; width: 215.9mm; max-width: 100%; min-height: 279.4mm;
+            margin: 8mm auto; box-shadow: 0 1px 6px #0003; }
+  }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 6mm;
+           border-bottom: 1.4pt solid var(--acento); padding-bottom: 1.6mm; margin-bottom: 3mm; }
+  h1 { font-size: 15pt; margin: 0; letter-spacing: -.2pt; }
+  h1 small { font-size: 8.4pt; font-weight: 400; color: var(--gris); margin-left: 2mm; letter-spacing: 0; }
+  header span { color: var(--gris); font-size: 7.6pt; white-space: nowrap; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 5mm; align-items: start; }
+  section { break-inside: avoid; margin-bottom: 2.4mm; }
+  .ancho { grid-column: 1 / -1; }
+  h2 { font-size: 9.2pt; margin: 0 0 1.3mm; color: var(--acento); text-transform: uppercase; letter-spacing: .5pt;
+       border-bottom: .5pt solid var(--linea); padding-bottom: .6mm; }
+  p { margin: 0 0 1.2mm; }
+  code, pre, kbd { font-family: Consolas, "Cascadia Mono", Menlo, monospace; font-size: 7.5pt; }
+  code { background: var(--fondo); padding: 0 .7mm; border-radius: .6mm; }
+  pre { background: var(--fondo); border-left: 1.4pt solid var(--acento); margin: .8mm 0 1.4mm; padding: 1.1mm 1.8mm;
+        white-space: pre-wrap; line-height: 1.32; }
+  pre i { color: var(--gris); font-style: normal; }
+  ol { margin: 0; padding: 0; list-style: none; counter-reset: paso; }
+  ol > li { counter-increment: paso; position: relative; padding-left: 6.2mm; margin-bottom: 1.5mm; }
+  ol > li::before { content: counter(paso); position: absolute; left: 0; top: .1mm; width: 4.4mm; height: 4.4mm;
+        border-radius: 50%; background: var(--acento); color: #fff; font-weight: 700; font-size: 7.6pt;
+        display: grid; place-items: center; }
+  ul { margin: 0 0 1.2mm; padding-left: 3.6mm; }
+  li { margin-bottom: .5mm; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 7.2pt; color: var(--gris); text-transform: uppercase; letter-spacing: .3pt;
+       font-weight: 600; border-bottom: .7pt solid var(--tinta); padding: 0 1.2mm .5mm 0; }
+  td { vertical-align: top; padding: .65mm 1.2mm .65mm 0; border-bottom: .4pt solid var(--linea); }
+  td:first-child { white-space: nowrap; }
+  td.n, th.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .nota { border: .6pt solid var(--linea); border-left: 1.4pt solid var(--tinta); padding: 1.1mm 1.8mm; margin: 1mm 0 0; }
+  .nota b { color: var(--acento); }
+  .gris { color: var(--gris); }
+  .pie { margin-top: 1mm; }
+  footer { margin-top: 1mm; padding-top: 1.2mm; border-top: .5pt solid var(--linea); color: var(--gris); font-size: 7.2pt;
+           display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<div class="hoja">
+<header>
+  <h1>Homelab de IA local <small>Guía rápida · 1 de 2: instalar y conversar</small></h1>
+  <span>github.com/lgzarturo/homelab</span>
+</header>
+
+<div class="cols">
+
+<div>
+<section>
+<h2>1 · Antes de empezar</h2>
+<table>
+  <tr><td><b>Docker</b></td><td>Docker Desktop (Windows, macOS) o Docker Engine (Linux), <b>encendido</b>.</td></tr>
+  <tr><td><b>Git</b></td><td>Para bajar el código.</td></tr>
+  <tr><td><b>Go 1.26+</b></td><td>Para compilar el binario. En Windows: <code>winget install GoLang.Go</code></td></tr>
+  <tr><td><b>Memoria</b></td><td>16 GB recomendados. Con 8 GB deja solo <code>ollama,openwebui</code> en <code>COMPOSE_PROFILES</code>.</td></tr>
+  <tr><td><b>Internet</b></td><td>Solo la primera vez, para descargar imágenes y modelos (varios GB).</td></tr>
+</table>
+</section>
+
+<section>
+<h2>2 · Bajar, compilar y levantar</h2>
+<ol>
+  <li>Baja el código y entra a la carpeta:
+<pre>git clone https://github.com/lgzarturo/homelab.git
+cd homelab</pre></li>
+  <li>Compila el binario:
+<pre>go build -o homelab.exe .   <i># Windows</i>
+go build -o homelab .       <i># macOS y Linux</i></pre></li>
+  <li>Levanta todo: crea <code>.env</code>, arranca los servicios y descarga los modelos.
+<pre>.\homelab.exe up            <i># Windows (PowerShell)</i>
+./homelab up                <i># macOS y Linux</i></pre></li>
+  <li>Comprueba que todo quedó bien:
+<pre>.\homelab.exe doctor
+.\homelab.exe status</pre></li>
+  <li>Conversa:
+<pre>.\homelab.exe chat</pre></li>
+</ol>
+<p class="gris">En el resto de la guía, <code>homelab</code> significa <code>.\homelab.exe</code> en Windows y <code>./homelab</code> en macOS y Linux, ejecutado dentro de la carpeta del proyecto.</p>
+</section>
+
+<section>
+<h2>3 · Qué queda instalado</h2>
+<table>
+  <tr><th>Servicio</th><th>Para qué</th><th>Dirección</th></tr>
+  <tr><td>Open WebUI</td><td>Chat en el navegador, voz y PDF</td><td><code>localhost:3000</code></td></tr>
+  <tr><td>n8n</td><td>Automatizaciones</td><td><code>localhost:5678</code></td></tr>
+  <tr><td>Filebrowser</td><td>Archivos y notas del agente</td><td><code>localhost:8080</code></td></tr>
+  <tr><td>Portainer</td><td>Panel de Docker</td><td><code>https://localhost:9443</code></td></tr>
+  <tr><td>Speaches</td><td>Voz: Whisper y Kokoro</td><td><code>localhost:8000/docs</code></td></tr>
+  <tr><td>Ollama</td><td>Corre los modelos</td><td><code>127.0.0.1:11434</code></td></tr>
+</table>
+<p class="gris pie">Solo se entra desde este equipo. Para abrirlo a la red local: <code>BIND_IP=0.0.0.0</code> en <code>.env</code> y <code>homelab up</code>. La primera cuenta que crees en Open WebUI es la de administrador.</p>
+</section>
+
+<section>
+<h2>4 · Una sola pregunta (ask)</h2>
+<pre>homelab ask "¿Cómo están el disco y la memoria?"
+homelab ask --nota "Informe" "Resume el estado del equipo"
+docker compose logs n8n | homelab ask "¿Hay errores?"</pre>
+<p>Escribe solo la respuesta y termina con código 1 si falla: sirve en scripts, tareas programadas y n8n.</p>
+</section>
+</div>
+
+<div>
+<section>
+<h2>5 · El chat</h2>
+<pre>homelab chat                     <i># modelo por defecto</i>
+homelab chat gemma4:e2b-it-qat   <i># otro modelo</i>
+homelab chat --pensar            <i># con razonamiento</i></pre>
+<table>
+  <tr><th>Dentro del chat</th><th>Qué hace</th></tr>
+  <tr><td><code>/ayuda</code></td><td>Muestra estos comandos</td></tr>
+  <tr><td><code>/modelo &lt;nombre&gt;</code></td><td>Cambia de modelo sin salir</td></tr>
+  <tr><td><code>/modelos</code></td><td>Lista los modelos instalados</td></tr>
+  <tr><td><code>/pensar</code></td><td>Activa o desactiva el razonamiento</td></tr>
+  <tr><td><code>/limpiar</code></td><td>Olvida la conversación</td></tr>
+  <tr><td><code>/salir</code></td><td>Termina (también Ctrl+D)</td></tr>
+  <tr><td><kbd>Ctrl+C</kbd></td><td>Corta la respuesta sin cerrar el chat</td></tr>
+</table>
+<p class="pie">Tras cada respuesta aparece: espera hasta la 1ª palabra · velocidad de lectura y de escritura (tokens/s) · tokens · tiempo total. El chat recuerda los últimos 6 mensajes.</p>
+</section>
+
+<section>
+<h2>6 · Qué preguntarle</h2>
+<ul>
+  <li>¿Cuánta RAM tengo libre? ¿Queda espacio en el disco?</li>
+  <li>¿Cuánto lleva encendido el equipo?</li>
+  <li>¿Está funcionando n8n? ¿Qué servicios están detenidos?</li>
+  <li>¿Qué dicen los últimos registros de open-webui?</li>
+  <li>¿Qué programas usan más memoria?</li>
+  <li>Guarda una nota titulada «Pendientes» con estos tres puntos…</li>
+  <li>¿Qué expresión de cron corre algo cada lunes a las 6?</li>
+</ul>
+<div class="nota"><b>Con 2 hilos, el modelo por defecto tarda de 20 a 60 s por respuesta.</b> Es normal: la espera hasta la primera palabra es de 14 a 22 s.</div>
+</section>
+
+<section>
+<h2>7 · Herramientas del agente</h2>
+<table>
+  <tr><th>Lee del equipo</th><th>Devuelve</th></tr>
+  <tr><td><code>disco</code></td><td>Espacio total, usado y libre, en GB</td></tr>
+  <tr><td><code>memoria</code></td><td>RAM total y disponible, en GB</td></tr>
+  <tr><td><code>temperatura</code></td><td>Temperatura del procesador (solo Linux)</td></tr>
+  <tr><td><code>tiempo_encendido</code></td><td>Horas desde que arrancó el equipo</td></tr>
+  <tr><td><code>procesos</code></td><td>Los 5 programas que más RAM usan</td></tr>
+  <tr><td><code>contenedores</code></td><td>Cuántos contenedores de Docker corren</td></tr>
+  <tr><th>Lee del homelab</th><th></th></tr>
+  <tr><td><code>servicios</code></td><td>Estado de cada servicio</td></tr>
+  <tr><td><code>logs_servicio</code></td><td>Últimas 30 líneas del registro de un servicio</td></tr>
+  <tr><td><code>leer_notas</code></td><td>Las 5 notas más recientes</td></tr>
+  <tr><th>Escribe</th><th></th></tr>
+  <tr><td><code>escribir_nota</code></td><td>Crea una nota Markdown nueva en <code>archivos/notas/</code>. Nunca borra ni sobrescribe.</td></tr>
+</table>
+<div class="nota"><b>Solo lectura y notas.</b> No existe ninguna herramienta que borre, reinicie, instale o envíe nada: si se lo pides, el agente te dice qué comando ejecutar tú. Máximo 3 notas por mensaje.</div>
+</section>
+</div>
+
+</div>
+<footer><span>Homelab de IA local · guía rápida</span><span>Página 1 de 2</span></footer>
+</div>
+
+<div class="hoja">
+<header>
+  <h1>Homelab de IA local <small>Guía rápida · 2 de 2: comandos y modelos</small></h1>
+  <span>github.com/lgzarturo/homelab</span>
+</header>
+
+<div class="cols">
+
+<section class="ancho">
+<h2>8 · Comandos</h2>
+<table>
+  <tr><th>Comando</th><th>Qué hace</th></tr>
+  <tr><td><code>homelab up</code></td><td>Levanta los servicios y descarga lo que falte. Repítelo tras editar <code>.env</code>. <code>--sin-modelos</code> no descarga modelos; <code>--lab</code> deja solo Ollama.</td></tr>
+  <tr><td><code>homelab down</code></td><td>Detiene los servicios. Los datos se conservan.</td></tr>
+  <tr><td><code>homelab status</code></td><td>Estado de cada servicio, versión de Ollama, modelo en memoria y direcciones.</td></tr>
+  <tr><td><code>homelab doctor</code></td><td>Revisa Docker, memoria, permisos de la carpeta, puertos ocupados y modelos que no caben.</td></tr>
+  <tr><td><code>homelab logs [servicio] [-f]</code></td><td>Registros de los servicios. Ejemplo: <code>homelab logs ollama -f</code></td></tr>
+  <tr><td><code>homelab models</code></td><td>Modelos instalados: tamaño, parámetros, cuantización y capacidades.</td></tr>
+  <tr><td><code>homelab pull &lt;modelo&gt;...</code></td><td>Descarga modelos de Ollama o de Hugging Face (<code>hf.co/usuario/repo:cuantización</code>). No empieza si el modelo no cabe; <code>--forzar</code> lo salta.</td></tr>
+  <tr><td><code>homelab rm &lt;modelo&gt;...</code></td><td>Borra modelos instalados.</td></tr>
+  <tr><td><code>homelab chat [modelo]</code></td><td>Conversa con el agente. <code>--pensar</code> activa el razonamiento.</td></tr>
+  <tr><td><code>homelab ask "pregunta"</code></td><td>Una sola respuesta, sin chat. <code>--modelo</code>, <code>--pensar</code>, <code>--nota "título"</code>. Sin pregunta, la lee de la entrada estándar.</td></tr>
+  <tr><td><code>homelab bench [modelos...]</code></td><td>Mide y compara modelos. <code>--runs</code>, <code>--suite</code>, <code>--hilos</code>, <code>--ctx</code>, <code>--pensar</code>.</td></tr>
+  <tr><td><code>homelab bench compare</code></td><td>Cruza los informes guardados en <code>resultados/</code>.</td></tr>
+  <tr><td><code>homelab version</code> · <code>help</code></td><td>Versión y ayuda. Opción global <code>--dir &lt;ruta&gt;</code> (o <code>HOMELAB_DIR</code>) para usar otra carpeta.</td></tr>
+</table>
+</section>
+
+<section class="ancho">
+<h2>9 · Modelos</h2>
+<table>
+  <tr><th>Modelo</th><th class="n">RAM</th><th class="n">Aciertos</th><th class="n">Usa herram.</th><th class="n">Escritura</th><th class="n">1ª palabra</th><th>Úsalo para</th></tr>
+  <tr><td><code>qwen3.5:4b-q4_K_M</code> <b>★</b></td><td class="n">3.1 GB</td><td class="n">31/39</td><td class="n">12/12</td><td class="n">8 tok/s</td><td class="n">14–22 s</td><td>Preguntar por el equipo. Por defecto.</td></tr>
+  <tr><td><code>gemma4:e2b-it-qat</code></td><td class="n">3.5 GB</td><td class="n">31/39</td><td class="n">6/12</td><td class="n">16 tok/s</td><td class="n">2–4 s</td><td>Resumir y clasificar texto. Rápido.</td></tr>
+  <tr><td><code>qwen3.5:2b-q4_K_M</code></td><td class="n">1.6 GB</td><td class="n">22/39</td><td class="n">10/12</td><td class="n">18 tok/s</td><td class="n">5–8 s</td><td>Equipos con 8 GB. Se equivoca más.</td></tr>
+  <tr><td><code>qwen3.5:9b</code></td><td class="n">6.2 GB</td><td class="n">10/13</td><td class="n">2/4</td><td class="n">5 tok/s</td><td class="n">26–38 s</td><td>Pruebas. No cabe en 6 GB.</td></tr>
+  <tr><td><code>mimo-v2.6:9b</code></td><td class="n">6.2 GB</td><td class="n">11/13</td><td class="n">3/4</td><td class="n">2–5 tok/s</td><td class="n">39 s</td><td>Pruebas. No cabe en 6 GB.</td></tr>
+  <tr><td><code>hf.co/unsloth/Qwen3.6-35B-A3B-GGUF:UD-IQ2_M</code></td><td class="n">12.0 GB</td><td class="n">13/13</td><td class="n">4/4</td><td class="n">5–8 tok/s</td><td class="n">20–22 s</td><td>El más preciso. Pide <code>OLLAMA_MEM=14g</code>.</td></tr>
+</table>
+<p class="gris pie">Medido con 2 hilos y contexto de 4096 en las suites <code>basica</code> y <code>mantenimiento</code> (los tres primeros, 3 rondas; el resto, 1). <code>homelab up</code> instala los tres primeros; los demás se bajan con <code>homelab pull</code>. <b>gemma4 contesta sobre el equipo sin consultar las herramientas</b> si la pregunta no nombra disco o memoria: no lo uses para eso.</p>
+</section>
+
+<div>
+<section>
+<h2>10 · Medir modelos (bench)</h2>
+<pre>homelab bench                 <i># todos, 3 rondas</i>
+homelab bench --suite mantenimiento
+homelab bench gemma4:e2b-it-qat --runs 1
+homelab bench --hilos 2,4,8   <i># compara hilos</i>
+homelab up --lab              <i># solo Ollama, para medir</i>
+homelab up                    <i># levanta todo otra vez</i></pre>
+<p>Informes en <code>resultados/</code>. Suites propias: JSON en <code>pruebas/</code>.</p>
+</section>
+
+<section>
+<h2>11 · Ajustes en .env</h2>
+<table>
+  <tr><th>Variable</th><th>Valor</th><th>Qué controla</th></tr>
+  <tr><td><code>OLLAMA_MODELS</code></td><td class="gris">3 modelos</td><td><b>El primero es el del chat</b></td></tr>
+  <tr><td><code>OLLAMA_MEM</code></td><td><code>6g</code></td><td>Memoria máxima de Ollama</td></tr>
+  <tr><td><code>OLLAMA_CPUS</code></td><td><code>2</code></td><td>Núcleos e hilos para los modelos</td></tr>
+  <tr><td><code>OLLAMA_CTX</code></td><td><code>4096</code></td><td>Contexto en tokens</td></tr>
+  <tr><td><code>COMPOSE_PROFILES</code></td><td class="gris">todos</td><td>Servicios que arrancan</td></tr>
+  <tr><td><code>BIND_IP</code></td><td><code>127.0.0.1</code></td><td>Quién puede entrar a los paneles</td></tr>
+</table>
+</section>
+</div>
+
+<div>
+<section>
+<h2>12 · Si algo falla</h2>
+<table>
+  <tr><td><b>Docker no responde</b></td><td>Abre Docker Desktop y espera a que arranque.</td></tr>
+  <tr><td><b>No deja escribir</b></td><td>Windows: permite <code>homelab.exe</code> en Seguridad.</td></tr>
+  <tr><td><b>Ollama no responde</b></td><td><code>homelab status</code> y <code>homelab logs ollama</code></td></tr>
+  <tr><td><b>Modelo no instalado</b></td><td><code>homelab pull &lt;modelo&gt;</code></td></tr>
+  <tr><td><b>El modelo no cabe</b></td><td>Sube <code>OLLAMA_MEM</code> o usa uno más pequeño.</td></tr>
+  <tr><td><b>Puerto ocupado</b></td><td><code>homelab doctor</code> dice cuál.</td></tr>
+  <tr><td><b>Va muy lento</b></td><td>Sube <code>OLLAMA_CPUS</code> o usa <code>gemma4:e2b-it-qat</code>.</td></tr>
+</table>
+</section>
+</div>
+
+</div>
+<footer><span>Homelab de IA local · guía rápida</span><span>Página 2 de 2</span></footer>
+</div>
+
+</body>
+</html>

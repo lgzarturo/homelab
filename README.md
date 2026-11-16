@@ -2,6 +2,8 @@
 
 Un binario, `homelab`, que levanta con Docker un homelab de inteligencia artificial que funciona sin internet y sin tarjeta gráfica, conversa con los modelos desde la terminal y mide su rendimiento para compararlos entre sí y entre equipos. Funciona igual en Linux, macOS y Windows.
 
+Guía rápida para imprimir (tamaño carta, una hoja por ambos lados): [docs/cheatsheet.pdf](docs/cheatsheet.pdf). Su fuente es `docs/cheatsheet.html`.
+
 ## Qué se instala
 
 | Servicio | Para qué | Dirección por defecto |
